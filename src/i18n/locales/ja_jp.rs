@@ -148,26 +148,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "グリッド",
         I18nKey::TbViewModeCanvas => "キャンバス",
         I18nKey::TbViewModeSwarm => "群れ",
-        I18nKey::TbRunMenu => "Run",
-
-        I18nKey::TbRunRefresh => "Refresh run commands",
-
-        I18nKey::TbRunEmpty => "No run commands found.",
-
-        I18nKey::TbRunLoading => "Loading run commands…",
-
-        I18nKey::TbRunDev => "Dev",
-
-        I18nKey::TbRunRun => "Run",
-
-        I18nKey::TbRunDebug => "Debug",
-
-        I18nKey::TbRunTest => "Test",
-
-        I18nKey::TbRunBuild => "Build",
-
-        I18nKey::TbRunOther => "Other",
-
+        I18nKey::TbRunMenu => "走る",
+        I18nKey::TbRunRefresh => "実行コマンドを更新する",
+        I18nKey::TbRunEmpty => "実行コマンドが見つかりません。",
+        I18nKey::TbRunLoading => "実行コマンドをロードしています…",
+        I18nKey::TbRunDev => "開発者",
+        I18nKey::TbRunRun => "走る",
+        I18nKey::TbRunDebug => "デバッグ",
+        I18nKey::TbRunTest => "テスト",
+        I18nKey::TbRunBuild => "建てる",
+        I18nKey::TbRunOther => "他の",
         I18nKey::CanvasSlotLabel => "スロット {id}",
         I18nKey::CanvasResizeNode => "終端ノードのサイズを変更する",
         I18nKey::CanvasEdgeSend => "送信エッジ出力",
@@ -449,6 +439,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgStateStandby => "待機する",
         I18nKey::AgTagline => "ワークスペースアシスタント",
         I18nKey::AgChatHeading => "チャットログ",
+        I18nKey::AgNewSession => "新しいセッション",
+        I18nKey::AgCloseSession => "セッションを閉じる",
+        I18nKey::AgSessionTabsAria => "エージェントのチャットセッション",
+        I18nKey::AgSessionRunning => "ランニング",
+        I18nKey::AgSessionIdle => "アイドル状態",
+        I18nKey::AgSessionThinking => "考え",
+        I18nKey::AgSessionNeedsInput => "入力が必要です",
+        I18nKey::AgSessionErrored => "エラーが発生しました",
+        I18nKey::AgSessionRestored => "復元されました",
+        I18nKey::AgSessionUnread => "未読のバックグラウンド更新",
+        I18nKey::AgCannotCloseRunningSession => "実行中のセッションを閉じることができません",
         I18nKey::AgBadgeReady => "準備ができて",
         I18nKey::AgBadgeLive => "ライブ",
         I18nKey::AgWelcomeBody => {
@@ -661,49 +662,28 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "画像",
         I18nKey::HsCatRemote => "リモート",
         I18nKey::HsCatMcp => "MCP",
-        I18nKey::HsCatPlugins => "Plugins",
-        I18nKey::PluginsDescription => "Manage BLXCode plugin packages and runtime command providers.",
-
-        I18nKey::PluginsHeading => "Plugin Packages",
-
-        I18nKey::PluginsInstall => "Install",
-
-        I18nKey::PluginsRefresh => "Refresh",
-
-        I18nKey::PluginsEmpty => "No plugins installed.",
-
-        I18nKey::PluginsBuiltIn => "Built-in",
-
-        I18nKey::PluginsInstalled => "Installed",
-
-        I18nKey::PluginsEnabled => "Enabled",
-
-        I18nKey::PluginsDisabled => "Disabled",
-
-        I18nKey::PluginsEnable => "Enable",
-
-        I18nKey::PluginsDisable => "Disable",
-
-        I18nKey::PluginsRemove => "Remove",
-
-        I18nKey::PluginsInstallTitle => "Install plugin",
-
+        I18nKey::HsCatPlugins => "プラグイン",
+        I18nKey::PluginsDescription => "BLXCode プラグイン パッケージとランタイム コマンド プロバイダーを管理します。",
+        I18nKey::PluginsHeading => "プラグインパッケージ",
+        I18nKey::PluginsInstall => "インストール",
+        I18nKey::PluginsRefresh => "リフレッシュ",
+        I18nKey::PluginsEmpty => "プラグインがインストールされていません。",
+        I18nKey::PluginsBuiltIn => "内蔵",
+        I18nKey::PluginsInstalled => "インストール済み",
+        I18nKey::PluginsEnabled => "有効",
+        I18nKey::PluginsDisabled => "無効",
+        I18nKey::PluginsEnable => "有効にする",
+        I18nKey::PluginsDisable => "無効にする",
+        I18nKey::PluginsRemove => "取り除く",
+        I18nKey::PluginsInstallTitle => "プラグインのインストール",
         I18nKey::PluginsGithubUrl => "GitHub URL",
-
         I18nKey::PluginsGithubUrlPlaceholder => "https://github.com/owner/repo/tree/main/package",
-
-        I18nKey::PluginsGitRef => "Git ref",
-
-        I18nKey::PluginsPackageDir => "Package directory",
-
-        I18nKey::PluginsInstallProgress => "Installing plugin…",
-
-        I18nKey::PluginsInstallDone => "Plugin installed.",
-
-        I18nKey::PluginsCategoryRuntime => "Runtime",
-
-        I18nKey::PluginsCategoryOther => "Other",
-
+        I18nKey::PluginsGitRef => "Git 参照",
+        I18nKey::PluginsPackageDir => "パッケージディレクトリ",
+        I18nKey::PluginsInstallProgress => "プラグインをインストール中…",
+        I18nKey::PluginsInstallDone => "プラグインがインストールされました。",
+        I18nKey::PluginsCategoryRuntime => "ランタイム",
+        I18nKey::PluginsCategoryOther => "他の",
         I18nKey::McpDescription => "アプリ内エージェントとバンドルされた端末 CLI が使用できる MCP サーバーを登録します。",
         I18nKey::McpHeading => "MCPサーバー",
         I18nKey::McpResetHint => "変更はセッションのリセット後にのみチャットに有効になります。",

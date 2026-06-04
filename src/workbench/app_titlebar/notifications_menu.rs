@@ -234,6 +234,12 @@ fn open_notification_target(
         .unwrap_or("");
     match view {
         "agent" => {
+            if let Some(ws_id) = target.get("workspaceId").and_then(|v| v.as_u64()) {
+                wb.select_workspace(ws_id);
+                if let Some(session_id) = target.get("sessionId").and_then(|v| v.as_str()) {
+                    let _ = wb.select_agent_chat_session(ws_id, session_id);
+                }
+            }
             wb.set_right_tab(RightPanelTab::Agent);
             if wb.right_collapsed().get_untracked() {
                 wb.toggle_right_panel();

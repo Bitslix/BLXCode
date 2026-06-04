@@ -28,6 +28,100 @@ pub const WORKBENCH_SNAPSHOT_VERSION: u32 = 1;
 pub const WORKSPACE_FLEET_AGENT_SLUGS: [&str; 5] =
     ["claude", "codex", "gemini", "opencode", "cursor"];
 
+pub const DEFAULT_AGENT_CHAT_SESSION_ID: &str = "default";
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentChatSessionStatus {
+    #[default]
+    Idle,
+    Running,
+    NeedsInput,
+    Error,
+    Restored,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentChatSession {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub timeline: TimelineDoc,
+    #[serde(default)]
+    pub draft: String,
+    #[serde(default)]
+    pub image_mode: bool,
+    #[serde(default)]
+    pub chat_mode: AgentChatMode,
+    #[serde(default)]
+    pub enhance_prompt_before_send: bool,
+    #[serde(default)]
+    pub usage: ChatUsageStats,
+    #[serde(default)]
+    pub status: AgentChatSessionStatus,
+    #[serde(default)]
+    pub unread_count: u32,
+    #[serde(default)]
+    pub pending_context_items: Vec<AgentContextItem>,
+    #[serde(default)]
+    pub pending_image_context_items: Vec<AgentImageContextItem>,
+    #[serde(default)]
+    pub created_at: f64,
+    #[serde(default)]
+    pub updated_at: f64,
+}
+
+impl AgentChatSession {
+    #[must_use]
+    pub fn legacy_default(
+        timeline: TimelineDoc,
+        draft: String,
+        image_mode: bool,
+        chat_mode: AgentChatMode,
+        enhance_prompt_before_send: bool,
+        usage: ChatUsageStats,
+        context_items: Vec<AgentContextItem>,
+    ) -> Self {
+        Self {
+            id: DEFAULT_AGENT_CHAT_SESSION_ID.to_string(),
+            title: "Chat 1".to_string(),
+            timeline,
+            draft,
+            image_mode,
+            chat_mode,
+            enhance_prompt_before_send,
+            usage,
+            status: AgentChatSessionStatus::Idle,
+            unread_count: 0,
+            pending_context_items: context_items,
+            pending_image_context_items: Vec::new(),
+            created_at: 0.0,
+            updated_at: 0.0,
+        }
+    }
+
+    #[must_use]
+    pub fn fresh(index: usize, now: f64) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4().simple().to_string(),
+            title: format!("Chat {}", index.max(1)),
+            timeline: TimelineDoc::default(),
+            draft: String::new(),
+            image_mode: false,
+            chat_mode: AgentChatMode::AskEdits,
+            enhance_prompt_before_send: false,
+            usage: ChatUsageStats::default(),
+            status: AgentChatSessionStatus::Idle,
+            unread_count: 0,
+            pending_context_items: Vec::new(),
+            pending_image_context_items: Vec::new(),
+            created_at: now,
+            updated_at: now,
+        }
+    }
+}
+
 /// One workspace open in the sidebar; shared across center and right panel via [`WorkbenchService`].
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WorkspaceEntry {
@@ -100,6 +194,13 @@ pub struct WorkspaceEntry {
     /// Memory/Learnings context attached to the next BLXCode Agent turns.
     #[serde(default)]
     pub agent_context_items: Vec<AgentContextItem>,
+    /// Parallel BLXCode Agent chat sessions for this workspace. Legacy
+    /// single-chat fields above are migrated into the first session and then
+    /// kept as compatibility mirrors of the active session.
+    #[serde(default)]
+    pub agent_chat_sessions: Vec<AgentChatSession>,
+    #[serde(default)]
+    pub active_agent_chat_session_id: String,
     /// Display/color/visibility overrides for memory categories in this workspace.
     #[serde(default)]
     pub memory_category_settings: HashMap<String, MemoryCategorySettings>,
@@ -710,6 +811,8 @@ impl WorkspaceEntry {
             agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
+            agent_chat_sessions: Vec::new(),
+            active_agent_chat_session_id: DEFAULT_AGENT_CHAT_SESSION_ID.to_string(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
@@ -728,6 +831,95 @@ impl WorkspaceEntry {
             canvas_edges: Vec::new(),
             canvas_default_transfer_mode: CanvasTransferMode::Structured,
             swarm_view_state: SwarmViewState::default(),
+        }
+    }
+
+    pub fn ensure_agent_chat_sessions(&mut self) {
+        if self.agent_chat_sessions.is_empty() {
+            self.agent_chat_sessions
+                .push(AgentChatSession::legacy_default(
+                    self.agent_timeline.clone(),
+                    self.agent_compose_draft.clone(),
+                    self.agent_image_mode,
+                    self.agent_chat_mode,
+                    self.agent_enhance_prompt_before_send,
+                    self.agent_chat_usage.clone(),
+                    self.agent_context_items.clone(),
+                ));
+        }
+
+        for (idx, session) in self.agent_chat_sessions.iter_mut().enumerate() {
+            if session.id.trim().is_empty() {
+                session.id = if idx == 0 {
+                    DEFAULT_AGENT_CHAT_SESSION_ID.to_string()
+                } else {
+                    uuid::Uuid::new_v4().simple().to_string()
+                };
+            }
+            if session.title.trim().is_empty() {
+                session.title = format!("Chat {}", idx + 1);
+            }
+            if matches!(
+                session.status,
+                AgentChatSessionStatus::Running | AgentChatSessionStatus::NeedsInput
+            ) {
+                session.status = AgentChatSessionStatus::Restored;
+            }
+        }
+
+        if self.active_agent_chat_session_id.trim().is_empty()
+            || !self
+                .agent_chat_sessions
+                .iter()
+                .any(|session| session.id == self.active_agent_chat_session_id)
+        {
+            self.active_agent_chat_session_id = self
+                .agent_chat_sessions
+                .first()
+                .map(|session| session.id.clone())
+                .unwrap_or_else(|| DEFAULT_AGENT_CHAT_SESSION_ID.to_string());
+        }
+        self.sync_legacy_agent_chat_fields_from_active();
+    }
+
+    fn active_agent_chat_session(&self) -> Option<&AgentChatSession> {
+        self.agent_chat_sessions
+            .iter()
+            .find(|session| session.id == self.active_agent_chat_session_id)
+            .or_else(|| self.agent_chat_sessions.first())
+    }
+
+    fn active_agent_chat_session_mut(&mut self) -> Option<&mut AgentChatSession> {
+        let active = self.active_agent_chat_session_id.clone();
+        let idx = self
+            .agent_chat_sessions
+            .iter()
+            .position(|session| session.id == active)
+            .unwrap_or(0);
+        self.agent_chat_sessions.get_mut(idx)
+    }
+
+    fn agent_chat_session(&self, session_id: &str) -> Option<&AgentChatSession> {
+        self.agent_chat_sessions
+            .iter()
+            .find(|session| session.id == session_id)
+    }
+
+    fn agent_chat_session_mut(&mut self, session_id: &str) -> Option<&mut AgentChatSession> {
+        self.agent_chat_sessions
+            .iter_mut()
+            .find(|session| session.id == session_id)
+    }
+
+    fn sync_legacy_agent_chat_fields_from_active(&mut self) {
+        if let Some(session) = self.active_agent_chat_session().cloned() {
+            self.agent_timeline = session.timeline;
+            self.agent_compose_draft = session.draft;
+            self.agent_image_mode = session.image_mode;
+            self.agent_chat_mode = session.chat_mode;
+            self.agent_enhance_prompt_before_send = session.enhance_prompt_before_send;
+            self.agent_chat_usage = session.usage;
+            self.agent_context_items = session.pending_context_items;
         }
     }
 
@@ -2809,6 +3001,8 @@ impl WorkbenchService {
             agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
+            agent_chat_sessions: Vec::new(),
+            active_agent_chat_session_id: DEFAULT_AGENT_CHAT_SESSION_ID.to_string(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
@@ -2950,6 +3144,8 @@ impl WorkbenchService {
                 agent_enhance_prompt_before_send: false,
                 architecture_llm_prose: false,
                 agent_context_items: Vec::new(),
+                agent_chat_sessions: Vec::new(),
+                active_agent_chat_session_id: DEFAULT_AGENT_CHAT_SESSION_ID.to_string(),
                 memory_category_settings: HashMap::new(),
                 agent_chat_usage: ChatUsageStats::default(),
                 sidebar_explorer_open: true,
@@ -3035,6 +3231,8 @@ impl WorkbenchService {
                 agent_enhance_prompt_before_send: false,
                 architecture_llm_prose: false,
                 agent_context_items: Vec::new(),
+                agent_chat_sessions: Vec::new(),
+                active_agent_chat_session_id: DEFAULT_AGENT_CHAT_SESSION_ID.to_string(),
                 memory_category_settings: HashMap::new(),
                 agent_chat_usage: ChatUsageStats::default(),
                 sidebar_explorer_open: true,
@@ -3577,6 +3775,8 @@ impl WorkbenchService {
                 agent_enhance_prompt_before_send: false,
                 architecture_llm_prose: false,
                 agent_context_items: Vec::new(),
+                agent_chat_sessions: Vec::new(),
+                active_agent_chat_session_id: DEFAULT_AGENT_CHAT_SESSION_ID.to_string(),
                 memory_category_settings: HashMap::new(),
                 agent_chat_usage: ChatUsageStats::default(),
                 sidebar_explorer_open: true,
@@ -3958,6 +4158,8 @@ impl WorkbenchService {
             agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
+            agent_chat_sessions: Vec::new(),
+            active_agent_chat_session_id: DEFAULT_AGENT_CHAT_SESSION_ID.to_string(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
@@ -4333,7 +4535,30 @@ impl WorkbenchService {
     pub fn set_workspace_agent_timeline(&self, workspace_id: u64, items: TimelineDoc) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
-                ws.agent_timeline = items;
+                ws.ensure_agent_chat_sessions();
+                if let Some(session) = ws.active_agent_chat_session_mut() {
+                    session.timeline = items;
+                    session.updated_at = js_sys::Date::now();
+                }
+                ws.sync_legacy_agent_chat_fields_from_active();
+            }
+        });
+    }
+
+    pub fn set_workspace_agent_session_timeline(
+        &self,
+        workspace_id: u64,
+        session_id: &str,
+        items: TimelineDoc,
+    ) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.ensure_agent_chat_sessions();
+                if let Some(session) = ws.agent_chat_session_mut(session_id) {
+                    session.timeline = items;
+                    session.updated_at = js_sys::Date::now();
+                }
+                ws.sync_legacy_agent_chat_fields_from_active();
             }
         });
     }
@@ -4345,7 +4570,8 @@ impl WorkbenchService {
             workspaces
                 .iter()
                 .find(|w| w.id == workspace_id)
-                .map(|w| w.agent_chat_usage.clone())
+                .and_then(|w| w.active_agent_chat_session())
+                .map(|session| session.usage.clone())
                 .unwrap_or_default()
         })
     }
@@ -4373,13 +4599,19 @@ impl WorkbenchService {
         let mut applied = false;
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.ensure_agent_chat_sessions();
                 let timeline_started_at = ws
-                    .agent_timeline
-                    .turns
-                    .first()
+                    .active_agent_chat_session()
+                    .and_then(|session| session.timeline.turns.first())
                     .and_then(|turn| turn.user.created_at);
-                let single_untimed_turn = ws.agent_timeline.turns.len() <= 1;
-                let u = &mut ws.agent_chat_usage;
+                let single_untimed_turn = ws
+                    .active_agent_chat_session()
+                    .map(|session| session.timeline.turns.len() <= 1)
+                    .unwrap_or(true);
+                let Some(session) = ws.active_agent_chat_session_mut() else {
+                    return;
+                };
+                let u = &mut session.usage;
                 if turn_generation < u.current_turn_generation {
                     return;
                 }
@@ -4410,6 +4642,70 @@ impl WorkbenchService {
                     u.last_round_input_tokens = t;
                 }
                 applied = true;
+                ws.sync_legacy_agent_chat_fields_from_active();
+            }
+        });
+        applied
+    }
+
+    pub fn record_chat_turn_usage_for_session(
+        &self,
+        workspace_id: u64,
+        session_id: &str,
+        turn_generation: u64,
+        input_tokens: Option<u64>,
+        output_tokens: Option<u64>,
+        elapsed_ms: u64,
+        cost_usd: Option<f64>,
+        round_input_tokens: Option<u64>,
+    ) -> bool {
+        let mut applied = false;
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.ensure_agent_chat_sessions();
+                let timeline_started_at = ws
+                    .agent_chat_session(session_id)
+                    .and_then(|session| session.timeline.turns.first())
+                    .and_then(|turn| turn.user.created_at);
+                let single_untimed_turn = ws
+                    .agent_chat_session(session_id)
+                    .map(|session| session.timeline.turns.len() <= 1)
+                    .unwrap_or(true);
+                let Some(session) = ws.agent_chat_session_mut(session_id) else {
+                    return;
+                };
+                let u = &mut session.usage;
+                if turn_generation < u.current_turn_generation {
+                    return;
+                }
+                if turn_generation > u.current_turn_generation {
+                    u.current_turn_generation = turn_generation;
+                }
+                if u.turn_count == 0 && u.session_started_at.is_none() {
+                    u.session_started_at = timeline_started_at.or_else(|| {
+                        if single_untimed_turn {
+                            Some(js_sys::Date::now())
+                        } else {
+                            None
+                        }
+                    });
+                }
+                u.turn_count = u.turn_count.saturating_add(1);
+                if let Some(p) = input_tokens {
+                    u.total_input_tokens = u.total_input_tokens.saturating_add(p);
+                }
+                if let Some(c) = output_tokens {
+                    u.total_output_tokens = u.total_output_tokens.saturating_add(c);
+                }
+                u.total_elapsed_ms = u.total_elapsed_ms.saturating_add(elapsed_ms);
+                if let Some(c) = cost_usd {
+                    u.total_cost_usd += c;
+                }
+                if let Some(t) = round_input_tokens {
+                    u.last_round_input_tokens = t;
+                }
+                applied = true;
+                ws.sync_legacy_agent_chat_fields_from_active();
             }
         });
         applied
@@ -4418,12 +4714,21 @@ impl WorkbenchService {
     /// Mark the current chat session as started without crediting a usage
     /// event. Called immediately when the user submits a turn so the Agent
     /// stats header updates before the first backend `TurnUsage` event lands.
-    pub fn ensure_chat_session_started(&self, workspace_id: u64, started_at: f64) {
+    pub fn ensure_chat_session_started_for_session(
+        &self,
+        workspace_id: u64,
+        session_id: &str,
+        started_at: f64,
+    ) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
-                if ws.agent_chat_usage.session_started_at.is_none() {
-                    ws.agent_chat_usage.session_started_at = Some(started_at);
+                ws.ensure_agent_chat_sessions();
+                if let Some(session) = ws.agent_chat_session_mut(session_id) {
+                    if session.usage.session_started_at.is_none() {
+                        session.usage.session_started_at = Some(started_at);
+                    }
                 }
+                ws.sync_legacy_agent_chat_fields_from_active();
             }
         });
     }
@@ -4432,10 +4737,19 @@ impl WorkbenchService {
     /// compaction replaces the conversation with a much smaller summary, so
     /// the meter reflects the new (estimated) prompt size immediately rather
     /// than waiting for the next real turn's `TurnUsage`.
-    pub fn set_last_round_input_tokens(&self, workspace_id: u64, tokens: u64) {
+    pub fn set_session_last_round_input_tokens(
+        &self,
+        workspace_id: u64,
+        session_id: &str,
+        tokens: u64,
+    ) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
-                ws.agent_chat_usage.last_round_input_tokens = tokens;
+                ws.ensure_agent_chat_sessions();
+                if let Some(session) = ws.agent_chat_session_mut(session_id) {
+                    session.usage.last_round_input_tokens = tokens;
+                }
+                ws.sync_legacy_agent_chat_fields_from_active();
             }
         });
     }
@@ -4444,17 +4758,18 @@ impl WorkbenchService {
     /// Bumps `current_turn_generation` past whatever it was before so any
     /// in-flight `TurnUsage` events from the cancelled turn are dropped
     /// when they arrive.
-    pub fn clear_chat_usage(&self, workspace_id: u64) {
+    pub fn clear_chat_usage_for_session(&self, workspace_id: u64, session_id: &str) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
-                let next_gen = ws
-                    .agent_chat_usage
-                    .current_turn_generation
-                    .saturating_add(1);
-                ws.agent_chat_usage = ChatUsageStats {
-                    current_turn_generation: next_gen,
-                    ..ChatUsageStats::default()
-                };
+                ws.ensure_agent_chat_sessions();
+                if let Some(session) = ws.agent_chat_session_mut(session_id) {
+                    let next_gen = session.usage.current_turn_generation.saturating_add(1);
+                    session.usage = ChatUsageStats {
+                        current_turn_generation: next_gen,
+                        ..ChatUsageStats::default()
+                    };
+                }
+                ws.sync_legacy_agent_chat_fields_from_active();
             }
         });
     }
@@ -4469,7 +4784,8 @@ impl WorkbenchService {
             workspaces
                 .iter()
                 .find(|w| w.id == workspace_id)
-                .map(|w| w.agent_timeline.clone())
+                .and_then(|w| w.active_agent_chat_session())
+                .map(|session| session.timeline.clone())
                 .unwrap_or_default()
         })
     }
@@ -4480,7 +4796,8 @@ impl WorkbenchService {
             workspaces
                 .iter()
                 .find(|w| w.id == workspace_id)
-                .map(|w| w.agent_compose_draft.clone())
+                .and_then(|w| w.active_agent_chat_session())
+                .map(|session| session.draft.clone())
                 .unwrap_or_default()
         })
     }
@@ -4488,7 +4805,12 @@ impl WorkbenchService {
     pub fn set_workspace_agent_compose_draft(&self, workspace_id: u64, draft: String) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
-                ws.agent_compose_draft = draft;
+                ws.ensure_agent_chat_sessions();
+                if let Some(session) = ws.active_agent_chat_session_mut() {
+                    session.draft = draft;
+                    session.updated_at = js_sys::Date::now();
+                }
+                ws.sync_legacy_agent_chat_fields_from_active();
             }
         });
     }
@@ -4499,7 +4821,8 @@ impl WorkbenchService {
             workspaces
                 .iter()
                 .find(|w| w.id == workspace_id)
-                .map(|w| w.agent_image_mode)
+                .and_then(|w| w.active_agent_chat_session())
+                .map(|session| session.image_mode)
                 .unwrap_or(false)
         })
     }
@@ -4520,7 +4843,12 @@ impl WorkbenchService {
     pub fn set_workspace_agent_image_mode(&self, workspace_id: u64, image_mode: bool) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
-                ws.agent_image_mode = image_mode;
+                ws.ensure_agent_chat_sessions();
+                if let Some(session) = ws.active_agent_chat_session_mut() {
+                    session.image_mode = image_mode;
+                    session.updated_at = js_sys::Date::now();
+                }
+                ws.sync_legacy_agent_chat_fields_from_active();
             }
         });
     }
@@ -4531,7 +4859,8 @@ impl WorkbenchService {
             workspaces
                 .iter()
                 .find(|w| w.id == workspace_id)
-                .map(|w| w.agent_chat_mode)
+                .and_then(|w| w.active_agent_chat_session())
+                .map(|session| session.chat_mode)
                 .unwrap_or_default()
         })
     }
@@ -4539,7 +4868,12 @@ impl WorkbenchService {
     pub fn set_workspace_agent_chat_mode(&self, workspace_id: u64, mode: AgentChatMode) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
-                ws.agent_chat_mode = mode;
+                ws.ensure_agent_chat_sessions();
+                if let Some(session) = ws.active_agent_chat_session_mut() {
+                    session.chat_mode = mode;
+                    session.updated_at = js_sys::Date::now();
+                }
+                ws.sync_legacy_agent_chat_fields_from_active();
             }
         });
     }
@@ -4550,7 +4884,8 @@ impl WorkbenchService {
             workspaces
                 .iter()
                 .find(|w| w.id == workspace_id)
-                .map(|w| w.agent_enhance_prompt_before_send)
+                .and_then(|w| w.active_agent_chat_session())
+                .map(|session| session.enhance_prompt_before_send)
                 .unwrap_or(false)
         })
     }
@@ -4558,9 +4893,179 @@ impl WorkbenchService {
     pub fn set_workspace_agent_enhance_prompt(&self, workspace_id: u64, enabled: bool) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
-                ws.agent_enhance_prompt_before_send = enabled;
+                ws.ensure_agent_chat_sessions();
+                if let Some(session) = ws.active_agent_chat_session_mut() {
+                    session.enhance_prompt_before_send = enabled;
+                    session.updated_at = js_sys::Date::now();
+                }
+                ws.sync_legacy_agent_chat_fields_from_active();
             }
         });
+    }
+
+    #[must_use]
+    pub fn agent_chat_sessions_for_workspace(&self, workspace_id: u64) -> Vec<AgentChatSession> {
+        self.workspaces.with(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| {
+                    let mut w = w.clone();
+                    w.ensure_agent_chat_sessions();
+                    w.agent_chat_sessions
+                })
+                .unwrap_or_default()
+        })
+    }
+
+    #[must_use]
+    pub fn active_agent_chat_session_id_for_workspace(&self, workspace_id: u64) -> String {
+        self.workspaces.with(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| {
+                    let mut w = w.clone();
+                    w.ensure_agent_chat_sessions();
+                    w.active_agent_chat_session_id
+                })
+                .unwrap_or_else(|| DEFAULT_AGENT_CHAT_SESSION_ID.to_string())
+        })
+    }
+
+    pub fn create_agent_chat_session(&self, workspace_id: u64) -> Option<String> {
+        let mut created = None;
+        self.workspaces.update(|workspaces| {
+            let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            ws.ensure_agent_chat_sessions();
+            let now = js_sys::Date::now();
+            let session = AgentChatSession::fresh(ws.agent_chat_sessions.len() + 1, now);
+            created = Some(session.id.clone());
+            ws.active_agent_chat_session_id = session.id.clone();
+            ws.agent_chat_sessions.push(session);
+            ws.sync_legacy_agent_chat_fields_from_active();
+        });
+        created
+    }
+
+    pub fn select_agent_chat_session(&self, workspace_id: u64, session_id: &str) -> bool {
+        let mut selected = false;
+        self.workspaces.update(|workspaces| {
+            let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            ws.ensure_agent_chat_sessions();
+            if ws.agent_chat_sessions.iter().any(|s| s.id == session_id) {
+                ws.active_agent_chat_session_id = session_id.to_string();
+                if let Some(session) = ws.agent_chat_session_mut(session_id) {
+                    session.unread_count = 0;
+                }
+                ws.sync_legacy_agent_chat_fields_from_active();
+                selected = true;
+            }
+        });
+        selected
+    }
+
+    pub fn close_agent_chat_session(&self, workspace_id: u64, session_id: &str) -> Result<(), ()> {
+        let mut closed = false;
+        self.workspaces.update(|workspaces| {
+            let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            ws.ensure_agent_chat_sessions();
+            if ws.agent_chat_sessions.len() <= 1 {
+                return;
+            }
+            let Some(idx) = ws
+                .agent_chat_sessions
+                .iter()
+                .position(|session| session.id == session_id)
+            else {
+                return;
+            };
+            if matches!(
+                ws.agent_chat_sessions[idx].status,
+                AgentChatSessionStatus::Running | AgentChatSessionStatus::NeedsInput
+            ) {
+                return;
+            }
+            ws.agent_chat_sessions.remove(idx);
+            if ws.active_agent_chat_session_id == session_id {
+                ws.active_agent_chat_session_id = ws
+                    .agent_chat_sessions
+                    .get(idx.saturating_sub(1))
+                    .or_else(|| ws.agent_chat_sessions.first())
+                    .map(|session| session.id.clone())
+                    .unwrap_or_else(|| DEFAULT_AGENT_CHAT_SESSION_ID.to_string());
+            }
+            ws.sync_legacy_agent_chat_fields_from_active();
+            closed = true;
+        });
+        if closed {
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
+    pub fn set_agent_chat_session_status(
+        &self,
+        workspace_id: u64,
+        session_id: &str,
+        status: AgentChatSessionStatus,
+    ) {
+        self.workspaces.update(|workspaces| {
+            let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            ws.ensure_agent_chat_sessions();
+            let is_active = ws.active_agent_chat_session_id == session_id;
+            if let Some(session) = ws.agent_chat_session_mut(session_id) {
+                session.status = status;
+                session.updated_at = js_sys::Date::now();
+                if !is_active {
+                    session.unread_count = session.unread_count.saturating_add(1);
+                }
+            }
+            ws.sync_legacy_agent_chat_fields_from_active();
+        });
+    }
+
+    pub fn set_agent_chat_session_title_if_auto(
+        &self,
+        workspace_id: u64,
+        session_id: &str,
+        title: String,
+        previous_auto_title: Option<&str>,
+    ) -> bool {
+        let mut updated = false;
+        let title = title.trim().to_string();
+        if title.is_empty() {
+            return false;
+        }
+        self.workspaces.update(|workspaces| {
+            let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            ws.ensure_agent_chat_sessions();
+            if let Some(session) = ws.agent_chat_session_mut(session_id) {
+                let current = session.title.trim();
+                let may_replace = is_default_agent_chat_title(current)
+                    || previous_auto_title
+                        .map(|expected| current == expected.trim())
+                        .unwrap_or(false);
+                if may_replace && current != title {
+                    session.title = title;
+                    session.updated_at = js_sys::Date::now();
+                    updated = true;
+                }
+            }
+            ws.sync_legacy_agent_chat_fields_from_active();
+        });
+        updated
     }
 
     #[must_use]
@@ -4602,7 +5107,8 @@ impl WorkbenchService {
             workspaces
                 .iter()
                 .find(|w| w.id == workspace_id)
-                .map(|w| w.agent_context_items.clone())
+                .and_then(|w| w.active_agent_chat_session())
+                .map(|session| session.pending_context_items.clone())
                 .unwrap_or_default()
         })
     }
@@ -4612,22 +5118,32 @@ impl WorkbenchService {
             let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
                 return;
             };
-            if let Some(existing) = ws
-                .agent_context_items
-                .iter_mut()
-                .find(|it| it.id == item.id)
-            {
-                *existing = item;
-            } else {
-                ws.agent_context_items.push(item);
+            ws.ensure_agent_chat_sessions();
+            if let Some(session) = ws.active_agent_chat_session_mut() {
+                if let Some(existing) = session
+                    .pending_context_items
+                    .iter_mut()
+                    .find(|it| it.id == item.id)
+                {
+                    *existing = item;
+                } else {
+                    session.pending_context_items.push(item);
+                }
             }
+            ws.sync_legacy_agent_chat_fields_from_active();
         });
     }
 
     pub fn remove_workspace_agent_context(&self, workspace_id: u64, item_id: &str) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
-                ws.agent_context_items.retain(|item| item.id != item_id);
+                ws.ensure_agent_chat_sessions();
+                if let Some(session) = ws.active_agent_chat_session_mut() {
+                    session
+                        .pending_context_items
+                        .retain(|item| item.id != item_id);
+                }
+                ws.sync_legacy_agent_chat_fields_from_active();
             }
         });
     }
@@ -4639,8 +5155,13 @@ impl WorkbenchService {
         let ids: HashSet<&str> = item_ids.iter().map(String::as_str).collect();
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
-                ws.agent_context_items
-                    .retain(|item| !ids.contains(item.id.as_str()));
+                ws.ensure_agent_chat_sessions();
+                if let Some(session) = ws.active_agent_chat_session_mut() {
+                    session
+                        .pending_context_items
+                        .retain(|item| !ids.contains(item.id.as_str()));
+                }
+                ws.sync_legacy_agent_chat_fields_from_active();
             }
         });
     }
@@ -4893,6 +5414,7 @@ impl WorkbenchService {
                     w.center_tabs.insert(0, CenterTab::terminals());
                 }
                 repair_center_tab_state(&mut w);
+                w.ensure_agent_chat_sessions();
                 w
             })
             .collect();
@@ -4907,6 +5429,7 @@ impl WorkbenchService {
                 }
                 let fallback = workspace_color_from_presets(&color_presets, idx);
                 r.workspace.color = normalize_hex_color(&r.workspace.color, &fallback);
+                r.workspace.ensure_agent_chat_sessions();
                 r
             })
             .collect();
@@ -4985,6 +5508,13 @@ impl WorkbenchService {
         }
         true
     }
+}
+
+fn is_default_agent_chat_title(title: &str) -> bool {
+    let Some(rest) = title.trim().strip_prefix("Chat ") else {
+        return false;
+    };
+    !rest.is_empty() && rest.chars().all(|ch| ch.is_ascii_digit())
 }
 
 fn settings_tab_title(_cat: HarnessSettingsCategory) -> &'static str {
@@ -5398,6 +5928,8 @@ mod center_tab_tests {
             agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
+            agent_chat_sessions: Vec::new(),
+            active_agent_chat_session_id: DEFAULT_AGENT_CHAT_SESSION_ID.to_string(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
@@ -5439,6 +5971,35 @@ mod center_tab_tests {
             CanvasTransferMode::Structured
         );
         assert_eq!(ws.swarm_view_state, SwarmViewState::default());
+    }
+
+    #[test]
+    fn legacy_agent_chat_fields_migrate_to_default_session() {
+        let mut value = serde_json::to_value(mk_workspace(1, default_center_tabs())).unwrap();
+        let object = value.as_object_mut().unwrap();
+        object.remove("agent_chat_sessions");
+        object.remove("active_agent_chat_session_id");
+        object.insert(
+            "agent_compose_draft".to_string(),
+            serde_json::Value::String("legacy draft".to_string()),
+        );
+        object.insert(
+            "agent_image_mode".to_string(),
+            serde_json::Value::Bool(true),
+        );
+
+        let mut ws: WorkspaceEntry = serde_json::from_value(value).unwrap();
+        ws.ensure_agent_chat_sessions();
+
+        assert_eq!(ws.agent_chat_sessions.len(), 1);
+        assert_eq!(
+            ws.active_agent_chat_session_id,
+            DEFAULT_AGENT_CHAT_SESSION_ID
+        );
+        let session = &ws.agent_chat_sessions[0];
+        assert_eq!(session.draft, "legacy draft");
+        assert!(session.image_mode);
+        assert_eq!(session.chat_mode, AgentChatMode::AskEdits);
     }
 
     #[test]
@@ -5573,6 +6134,8 @@ mod terminal_slot_tests {
             agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
+            agent_chat_sessions: Vec::new(),
+            active_agent_chat_session_id: DEFAULT_AGENT_CHAT_SESSION_ID.to_string(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,

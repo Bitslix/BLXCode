@@ -148,26 +148,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "网格",
         I18nKey::TbViewModeCanvas => "帆布",
         I18nKey::TbViewModeSwarm => "蜂群",
-        I18nKey::TbRunMenu => "Run",
-
-        I18nKey::TbRunRefresh => "Refresh run commands",
-
-        I18nKey::TbRunEmpty => "No run commands found.",
-
-        I18nKey::TbRunLoading => "Loading run commands…",
-
-        I18nKey::TbRunDev => "Dev",
-
-        I18nKey::TbRunRun => "Run",
-
-        I18nKey::TbRunDebug => "Debug",
-
-        I18nKey::TbRunTest => "Test",
-
-        I18nKey::TbRunBuild => "Build",
-
-        I18nKey::TbRunOther => "Other",
-
+        I18nKey::TbRunMenu => "跑步",
+        I18nKey::TbRunRefresh => "刷新运行命令",
+        I18nKey::TbRunEmpty => "未找到运行命令。",
+        I18nKey::TbRunLoading => "正在加载运行命令...",
+        I18nKey::TbRunDev => "开发者",
+        I18nKey::TbRunRun => "跑步",
+        I18nKey::TbRunDebug => "调试",
+        I18nKey::TbRunTest => "测试",
+        I18nKey::TbRunBuild => "建造",
+        I18nKey::TbRunOther => "其他",
         I18nKey::CanvasSlotLabel => "插槽 {id}",
         I18nKey::CanvasResizeNode => "调整终端节点的大小",
         I18nKey::CanvasEdgeSend => "发送边沿输出",
@@ -447,6 +437,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgStateStandby => "支持",
         I18nKey::AgTagline => "工作空间助手",
         I18nKey::AgChatHeading => "聊天记录",
+        I18nKey::AgNewSession => "新会议",
+        I18nKey::AgCloseSession => "结束会议",
+        I18nKey::AgSessionTabsAria => "代理聊天会话",
+        I18nKey::AgSessionRunning => "跑步",
+        I18nKey::AgSessionIdle => "闲置的",
+        I18nKey::AgSessionThinking => "思维",
+        I18nKey::AgSessionNeedsInput => "需要输入",
+        I18nKey::AgSessionErrored => "出错了",
+        I18nKey::AgSessionRestored => "已恢复",
+        I18nKey::AgSessionUnread => "未读后台更新",
+        I18nKey::AgCannotCloseRunningSession => "无法关闭正在运行的会话",
         I18nKey::AgBadgeReady => "准备好",
         I18nKey::AgBadgeLive => "居住",
         I18nKey::AgWelcomeBody => "您好 — 我是 BLXCode 代理。我可以读取文件、管理工作区任务、搜索工作区内存以及为您打开终端。发送提示以开始。",
@@ -657,49 +658,28 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "图像",
         I18nKey::HsCatRemote => "偏僻的",
         I18nKey::HsCatMcp => "MCP",
-        I18nKey::HsCatPlugins => "Plugins",
-        I18nKey::PluginsDescription => "Manage BLXCode plugin packages and runtime command providers.",
-
-        I18nKey::PluginsHeading => "Plugin Packages",
-
-        I18nKey::PluginsInstall => "Install",
-
-        I18nKey::PluginsRefresh => "Refresh",
-
-        I18nKey::PluginsEmpty => "No plugins installed.",
-
-        I18nKey::PluginsBuiltIn => "Built-in",
-
-        I18nKey::PluginsInstalled => "Installed",
-
-        I18nKey::PluginsEnabled => "Enabled",
-
-        I18nKey::PluginsDisabled => "Disabled",
-
-        I18nKey::PluginsEnable => "Enable",
-
-        I18nKey::PluginsDisable => "Disable",
-
-        I18nKey::PluginsRemove => "Remove",
-
-        I18nKey::PluginsInstallTitle => "Install plugin",
-
-        I18nKey::PluginsGithubUrl => "GitHub URL",
-
+        I18nKey::HsCatPlugins => "插件",
+        I18nKey::PluginsDescription => "管理 BLXCode 插件包和运行时命令提供程序。",
+        I18nKey::PluginsHeading => "插件包",
+        I18nKey::PluginsInstall => "安装",
+        I18nKey::PluginsRefresh => "刷新",
+        I18nKey::PluginsEmpty => "没有安装插件。",
+        I18nKey::PluginsBuiltIn => "内置",
+        I18nKey::PluginsInstalled => "已安装",
+        I18nKey::PluginsEnabled => "启用",
+        I18nKey::PluginsDisabled => "残疾人",
+        I18nKey::PluginsEnable => "使能够",
+        I18nKey::PluginsDisable => "禁用",
+        I18nKey::PluginsRemove => "消除",
+        I18nKey::PluginsInstallTitle => "安装插件",
+        I18nKey::PluginsGithubUrl => "GitHub 网址",
         I18nKey::PluginsGithubUrlPlaceholder => "https://github.com/owner/repo/tree/main/package",
-
-        I18nKey::PluginsGitRef => "Git ref",
-
-        I18nKey::PluginsPackageDir => "Package directory",
-
-        I18nKey::PluginsInstallProgress => "Installing plugin…",
-
-        I18nKey::PluginsInstallDone => "Plugin installed.",
-
-        I18nKey::PluginsCategoryRuntime => "Runtime",
-
-        I18nKey::PluginsCategoryOther => "Other",
-
+        I18nKey::PluginsGitRef => "git 参考",
+        I18nKey::PluginsPackageDir => "包目录",
+        I18nKey::PluginsInstallProgress => "正在安装插件...",
+        I18nKey::PluginsInstallDone => "插件已安装。",
+        I18nKey::PluginsCategoryRuntime => "运行时",
+        I18nKey::PluginsCategoryOther => "其他",
         I18nKey::McpDescription => "注册应用内代理和捆绑终端 CLI 可以使用的 MCP 服务器。",
         I18nKey::McpHeading => "MCP服务器",
         I18nKey::McpResetHint => "仅在会话重置后，更改才会在聊天中生效。",

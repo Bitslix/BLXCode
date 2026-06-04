@@ -44,14 +44,14 @@ Implement true parallel BLXCode Agent chat sessions per workspace on a new Git b
 
 ## Tasks
 
-- [ ] `branch-from-stage` - Create a feature branch from `stage` before implementation.
-- [ ] `read-required-skills` - Read and apply the Rust, Tauri, and frontend design skills before coding.
-- [ ] `model-session-state` - Add persisted `AgentChatSession` state and migrate legacy single-session workspace fields.
-- [ ] `backend-session-registry` - Introduce a session-keyed backend agent engine registry with isolated engine state.
-- [ ] `thread-session-id` - Thread `sessionId` through Tauri commands, frontend bridge calls, polling, abort, clear, compaction, and tool-result delivery.
-- [ ] `build-session-tabs-ui` - Add the Chatlog `+` action and token-styled session tab bar under the Chatlog header.
-- [ ] `route-background-events` - Route background session events into inactive timelines, status icons, and unread counters.
-- [ ] `integrate-notifications` - Connect background done/error/ask events to the existing Agent notification system with session targets.
-- [ ] `update-agent-docs` - Update system prompt/tool docs so BLXCode Agent fully supports multi-session toolcalls, asks, and notifications.
-- [ ] `add-i18n-and-token-css` - Add all required i18n strings and ensure new CSS uses only theme tokens.
-- [ ] `verify-multi-session` - Run automated and manual checks for concurrency, restart persistence, notifications, themes, and locales.
+- [x] `branch-from-stage` - Create a feature branch from `stage` before implementation.
+- [x] `read-required-skills` - Read and apply the Rust, Tauri, and frontend design skills before coding.
+- [x] `model-session-state` - Add persisted `AgentChatSession` state and migrate legacy single-session workspace fields.
+- [x] `backend-session-registry` - Introduce a session-keyed backend agent engine registry with isolated engine state.
+- [x] `thread-session-id` - Thread `sessionId` through Tauri commands, frontend bridge calls, polling, abort, clear, compaction, and tool-result delivery.
+- [x] `build-session-tabs-ui` - Add the Chatlog `+` action and token-styled session tab bar under the Chatlog header.
+- [x] `route-background-events` - Route background session events into inactive timelines, status icons, and unread counters.
+- [x] `integrate-notifications` - Connect background done/error/ask events to the existing Agent notification system with session targets.
+- [x] `update-agent-docs` - Update system prompt/tool docs so BLXCode Agent fully supports multi-session toolcalls, asks, and notifications.
+- [x] `add-i18n-and-token-css` - Add all required i18n strings and ensure new CSS uses only theme tokens.
+- [x] `verify-multi-session` - Run automated and manual checks for concurrency, restart persistence, notifications, themes, and locales.

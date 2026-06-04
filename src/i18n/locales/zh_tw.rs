@@ -148,26 +148,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "網格",
         I18nKey::TbViewModeCanvas => "帆布",
         I18nKey::TbViewModeSwarm => "蜂群",
-        I18nKey::TbRunMenu => "Run",
-
-        I18nKey::TbRunRefresh => "Refresh run commands",
-
-        I18nKey::TbRunEmpty => "No run commands found.",
-
-        I18nKey::TbRunLoading => "Loading run commands…",
-
-        I18nKey::TbRunDev => "Dev",
-
-        I18nKey::TbRunRun => "Run",
-
-        I18nKey::TbRunDebug => "Debug",
-
-        I18nKey::TbRunTest => "Test",
-
-        I18nKey::TbRunBuild => "Build",
-
-        I18nKey::TbRunOther => "Other",
-
+        I18nKey::TbRunMenu => "跑步",
+        I18nKey::TbRunRefresh => "刷新運行命令",
+        I18nKey::TbRunEmpty => "未找到運行命令。",
+        I18nKey::TbRunLoading => "正在載入運行命令...",
+        I18nKey::TbRunDev => "開發者",
+        I18nKey::TbRunRun => "跑步",
+        I18nKey::TbRunDebug => "偵錯",
+        I18nKey::TbRunTest => "測試",
+        I18nKey::TbRunBuild => "建造",
+        I18nKey::TbRunOther => "其他",
         I18nKey::CanvasSlotLabel => "插槽 {id}",
         I18nKey::CanvasResizeNode => "調整終端節點的大小",
         I18nKey::CanvasEdgeSend => "發送邊緣輸出",
@@ -447,6 +437,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgStateStandby => "支援",
         I18nKey::AgTagline => "工作空間助手",
         I18nKey::AgChatHeading => "聊天記錄",
+        I18nKey::AgNewSession => "新會話",
+        I18nKey::AgCloseSession => "結束會議",
+        I18nKey::AgSessionTabsAria => "代理聊天會話",
+        I18nKey::AgSessionRunning => "跑步",
+        I18nKey::AgSessionIdle => "閒置的",
+        I18nKey::AgSessionThinking => "思維",
+        I18nKey::AgSessionNeedsInput => "需要輸入",
+        I18nKey::AgSessionErrored => "出錯了",
+        I18nKey::AgSessionRestored => "已恢復",
+        I18nKey::AgSessionUnread => "未讀後台更新",
+        I18nKey::AgCannotCloseRunningSession => "無法關閉正在執行的會話",
         I18nKey::AgBadgeReady => "準備好",
         I18nKey::AgBadgeLive => "居住",
         I18nKey::AgWelcomeBody => "您好 — 我是 BLXCode 代理程式。我可以讀取文件、管理工作區任務、搜尋工作區記憶體以及為您開啟終端。發送提示以開始。",
@@ -657,49 +658,28 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "影像",
         I18nKey::HsCatRemote => "偏僻的",
         I18nKey::HsCatMcp => "MCP",
-        I18nKey::HsCatPlugins => "Plugins",
-        I18nKey::PluginsDescription => "Manage BLXCode plugin packages and runtime command providers.",
-
-        I18nKey::PluginsHeading => "Plugin Packages",
-
-        I18nKey::PluginsInstall => "Install",
-
-        I18nKey::PluginsRefresh => "Refresh",
-
-        I18nKey::PluginsEmpty => "No plugins installed.",
-
-        I18nKey::PluginsBuiltIn => "Built-in",
-
-        I18nKey::PluginsInstalled => "Installed",
-
-        I18nKey::PluginsEnabled => "Enabled",
-
-        I18nKey::PluginsDisabled => "Disabled",
-
-        I18nKey::PluginsEnable => "Enable",
-
-        I18nKey::PluginsDisable => "Disable",
-
-        I18nKey::PluginsRemove => "Remove",
-
-        I18nKey::PluginsInstallTitle => "Install plugin",
-
-        I18nKey::PluginsGithubUrl => "GitHub URL",
-
+        I18nKey::HsCatPlugins => "外掛",
+        I18nKey::PluginsDescription => "管理 BLXCode 外掛程式包和執行時間命令提供者。",
+        I18nKey::PluginsHeading => "插件包",
+        I18nKey::PluginsInstall => "安裝",
+        I18nKey::PluginsRefresh => "重新整理",
+        I18nKey::PluginsEmpty => "沒有安裝插件。",
+        I18nKey::PluginsBuiltIn => "內建",
+        I18nKey::PluginsInstalled => "已安裝",
+        I18nKey::PluginsEnabled => "啟用",
+        I18nKey::PluginsDisabled => "殘障人士",
+        I18nKey::PluginsEnable => "使能夠",
+        I18nKey::PluginsDisable => "停用",
+        I18nKey::PluginsRemove => "消除",
+        I18nKey::PluginsInstallTitle => "安裝插件",
+        I18nKey::PluginsGithubUrl => "GitHub 網址",
         I18nKey::PluginsGithubUrlPlaceholder => "https://github.com/owner/repo/tree/main/package",
-
-        I18nKey::PluginsGitRef => "Git ref",
-
-        I18nKey::PluginsPackageDir => "Package directory",
-
-        I18nKey::PluginsInstallProgress => "Installing plugin…",
-
-        I18nKey::PluginsInstallDone => "Plugin installed.",
-
-        I18nKey::PluginsCategoryRuntime => "Runtime",
-
-        I18nKey::PluginsCategoryOther => "Other",
-
+        I18nKey::PluginsGitRef => "git 參考",
+        I18nKey::PluginsPackageDir => "包目錄",
+        I18nKey::PluginsInstallProgress => "正在安裝插件...",
+        I18nKey::PluginsInstallDone => "插件已安裝。",
+        I18nKey::PluginsCategoryRuntime => "運行時",
+        I18nKey::PluginsCategoryOther => "其他",
         I18nKey::McpDescription => "註冊應用程式內代理程式和捆綁終端 CLI 可以使用的 MCP 伺服器。",
         I18nKey::McpHeading => "MCP伺服器",
         I18nKey::McpResetHint => "僅在會話重置後，更改才會在聊天中生效。",
@@ -1474,7 +1454,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HelpMenuIssues => "問題",
         I18nKey::HelpMenuDiscussions => "討論",
         I18nKey::NotificationsMenuMarkAllRead => "標記全部已讀",
-        I18nKey::BrowserThisPageBlocksIframeEmbeddingInTheApp => "This page blocks iframe embedding in the app.",
+        I18nKey::BrowserThisPageBlocksIframeEmbeddingInTheApp => "此頁面會阻止應用程式中嵌入 iframe。",
         I18nKey::BrowserOpenInBrowser => "在瀏覽器中開啟",
         I18nKey::CommonFile => "文件",
         I18nKey::CommonFolder => "資料夾",
@@ -1486,9 +1466,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::DiagramGalleryDeleteFailed => "刪除失敗：",
         I18nKey::KeyArrowUp => "向上箭頭",
         I18nKey::KeyArrowDown => "向下箭頭",
-        I18nKey::FilePreviewEditorBlxCmTheme => "BlxCM",
+        I18nKey::FilePreviewEditorBlxCmTheme => "BLxCM",
         I18nKey::FilePreviewMermaidMermaidBundleDidNotBecomeReady => "美人魚捆綁包尚未準備好",
-        I18nKey::GitGraphOpenOnGitHub => "Open on GitHub",
+        I18nKey::GitGraphOpenOnGitHub => "在 GitHub 上打開",
         I18nKey::HarnessChordTextareaElement => "文字區",
         I18nKey::HarnessHeartBeat => "心跳",
         I18nKey::CommonStable => "穩定的",
@@ -1526,7 +1506,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WorkbenchWorkspaceFilesReady => "BLXCode 工作區檔案已準備就緒。",
         I18nKey::WorkbenchWorkspaceFilesMissingBootstrapSkipped => "BLXCode 工作區檔案遺失；引導程式被儲存的選擇跳過。",
         I18nKey::WorkbenchCreateWorkspaceFilesPrompt => "建立 BLXCode 工作區文件？",
-        I18nKey::WorkbenchCreateAutomatically => "Create automatically",
+        I18nKey::WorkbenchCreateAutomatically => "自動建立",
         I18nKey::WorkbenchNotNow => "現在不要",
         I18nKey::WorkbenchWorkspaceBootstrapSkippedSaved => "已跳過 BLXCode 工作區引導程式。选择已保存。",
         I18nKey::PathNavHomeUnavailableInBrowser => "HOME 在瀏覽器版本中不可用；使用絕對路徑。",

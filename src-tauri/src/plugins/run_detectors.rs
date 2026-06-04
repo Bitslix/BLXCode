@@ -55,14 +55,6 @@ impl WorkspaceScan {
         })
     }
 
-    pub fn from_files(root: impl Into<PathBuf>, files: impl IntoIterator<Item = String>) -> Self {
-        Self {
-            root: root.into(),
-            files: files.into_iter().collect(),
-            texts: BTreeMap::new(),
-        }
-    }
-
     pub fn from_files_and_texts(
         root: impl Into<PathBuf>,
         files: impl IntoIterator<Item = String>,

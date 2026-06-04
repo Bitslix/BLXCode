@@ -64,28 +64,60 @@ pub async fn invoke_typed<T: DeserializeOwned>(
     serde_wasm_bindgen::from_value(v).map_err(|e| format!("deserialize {}: {}", cmd, e))
 }
 
-pub async fn agent_submit_turn(turn: UserTurn) -> Result<(), String> {
+pub async fn agent_submit_turn(session_id: Option<String>, turn: UserTurn) -> Result<(), String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
+        session_id: Option<String>,
         turn: UserTurn,
     }
-    invoke_unit_js("agent_submit_turn", args_value(Args { turn })?).await
+    invoke_unit_js("agent_submit_turn", args_value(Args { session_id, turn })?).await
 }
 
-pub async fn agent_poll_events(max: usize) -> Result<Vec<EventEnvelope>, String> {
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedChatTitle {
+    pub title: String,
+}
+
+pub async fn agent_generate_chat_title(prompt: String) -> Result<GeneratedChatTitle, String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        prompt: String,
+    }
+    invoke_typed("agent_generate_chat_title", Args { prompt }).await
+}
+
+pub async fn agent_poll_events(
+    session_id: Option<String>,
+    max: usize,
+) -> Result<Vec<EventEnvelope>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct MaxArgs {
+        session_id: Option<String>,
         max: usize,
     }
-    invoke_typed("agent_poll_events", MaxArgs { max }).await
+    invoke_typed("agent_poll_events", MaxArgs { session_id, max }).await
 }
 
-pub async fn agent_abort() -> Result<(), String> {
-    invoke_unit_js("agent_abort", JsValue::UNDEFINED).await
+pub async fn agent_abort(session_id: Option<String>) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        session_id: Option<String>,
+    }
+    invoke_unit_js("agent_abort", args_value(Args { session_id })?).await
 }
 
-pub async fn agent_clear_conversation() -> Result<(), String> {
-    invoke_unit_js("agent_clear_conversation", JsValue::UNDEFINED).await
+pub async fn agent_clear_conversation(session_id: Option<String>) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        session_id: Option<String>,
+    }
+    invoke_unit_js("agent_clear_conversation", args_value(Args { session_id })?).await
 }
 
 // ---------------------------------------------------------------------------
@@ -384,6 +416,16 @@ pub async fn agent_submit_tool_result(
     message: Option<String>,
     data: Option<serde_json::Value>,
 ) -> Result<(), String> {
+    agent_submit_tool_result_for_session(None, call_id, ok, message, data).await
+}
+
+pub async fn agent_submit_tool_result_for_session(
+    session_id: Option<String>,
+    call_id: String,
+    ok: bool,
+    message: Option<String>,
+    data: Option<serde_json::Value>,
+) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Payload {
@@ -395,12 +437,15 @@ pub async fn agent_submit_tool_result(
         data: Option<serde_json::Value>,
     }
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
+        session_id: Option<String>,
         payload: Payload,
     }
     invoke_unit_js(
         "agent_submit_tool_result",
         args_value(Args {
+            session_id,
             payload: Payload {
                 call_id,
                 ok,
@@ -860,14 +905,23 @@ pub struct CompactionResult {
 /// Summarize the running conversation and replace it with a compact briefing.
 /// `current_tokens` is the meter's live occupancy (for an accurate before/after).
 pub async fn agent_compact_conversation(
+    session_id: Option<String>,
     current_tokens: Option<u64>,
 ) -> Result<CompactionResult, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Args {
+        session_id: Option<String>,
         current_tokens: Option<u64>,
     }
-    invoke_typed("agent_compact_conversation", Args { current_tokens }).await
+    invoke_typed(
+        "agent_compact_conversation",
+        Args {
+            session_id,
+            current_tokens,
+        },
+    )
+    .await
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -4568,7 +4622,7 @@ pub async fn pty_kill(session_id: u64) -> Result<(), String> {
 /// Draint Events bis `Done`/`Error`; bei leeren Batches kurz warten (Streaming).
 #[allow(dead_code)]
 pub async fn agent_drain_turn(on_batch: impl Fn(Vec<EventEnvelope>)) -> Result<(), String> {
-    agent_drain_turn_opts(false, on_batch).await
+    agent_drain_turn_opts(None, false, on_batch).await
 }
 
 /// Variante mit `expect_voice`: drain läuft nach `Done` weiter, bis ein
@@ -4576,6 +4630,7 @@ pub async fn agent_drain_turn(on_batch: impl Fn(Vec<EventEnvelope>)) -> Result<(
 /// Damit holen wir den TTS-Output, der vom Orchestrator nach dem
 /// regulären `Done` gepusht wird.
 pub async fn agent_drain_turn_opts(
+    session_id: Option<String>,
     expect_voice: bool,
     on_batch: impl Fn(Vec<EventEnvelope>),
 ) -> Result<(), String> {
@@ -4583,7 +4638,7 @@ pub async fn agent_drain_turn_opts(
     let mut idle_after_done: u32 = 0;
     const VOICE_TAIL_IDLE_MAX: u32 = 600; // 600 * 50ms ≈ 30s
     loop {
-        let batch = agent_poll_events(64).await?;
+        let batch = agent_poll_events(session_id.clone(), 64).await?;
         if batch.is_empty() {
             if seen_done && expect_voice {
                 idle_after_done += 1;

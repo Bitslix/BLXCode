@@ -150,26 +150,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "Siatka",
         I18nKey::TbViewModeCanvas => "Płótno",
         I18nKey::TbViewModeSwarm => "Rój",
-        I18nKey::TbRunMenu => "Run",
-
-        I18nKey::TbRunRefresh => "Refresh run commands",
-
-        I18nKey::TbRunEmpty => "No run commands found.",
-
-        I18nKey::TbRunLoading => "Loading run commands…",
-
-        I18nKey::TbRunDev => "Dev",
-
-        I18nKey::TbRunRun => "Run",
-
-        I18nKey::TbRunDebug => "Debug",
-
+        I18nKey::TbRunMenu => "Uruchomić",
+        I18nKey::TbRunRefresh => "Odśwież polecenia uruchamiania",
+        I18nKey::TbRunEmpty => "Nie znaleziono poleceń uruchamiania.",
+        I18nKey::TbRunLoading => "Ładowanie poleceń uruchamiania…",
+        I18nKey::TbRunDev => "Rozw",
+        I18nKey::TbRunRun => "Uruchomić",
+        I18nKey::TbRunDebug => "Odpluskwić",
         I18nKey::TbRunTest => "Test",
-
-        I18nKey::TbRunBuild => "Build",
-
-        I18nKey::TbRunOther => "Other",
-
+        I18nKey::TbRunBuild => "Zbudować",
+        I18nKey::TbRunOther => "Inny",
         I18nKey::CanvasSlotLabel => "Miejsce {id}",
         I18nKey::CanvasResizeNode => "Zmień rozmiar węzła końcowego",
         I18nKey::CanvasEdgeSend => "Wyślij dane wyjściowe z krawędzi",
@@ -455,6 +445,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgStateStandby => "Gotowość",
         I18nKey::AgTagline => "Asystent przestrzeni roboczej",
         I18nKey::AgChatHeading => "Dziennik czatu",
+        I18nKey::AgNewSession => "Nowa sesja",
+        I18nKey::AgCloseSession => "Zamknij sesję",
+        I18nKey::AgSessionTabsAria => "Sesje czatu agenta",
+        I18nKey::AgSessionRunning => "Działanie",
+        I18nKey::AgSessionIdle => "Bezczynny",
+        I18nKey::AgSessionThinking => "Myślący",
+        I18nKey::AgSessionNeedsInput => "Wymaga wkładu",
+        I18nKey::AgSessionErrored => "Błąd",
+        I18nKey::AgSessionRestored => "Przywrócony",
+        I18nKey::AgSessionUnread => "Nieprzeczytane aktualizacje w tle",
+        I18nKey::AgCannotCloseRunningSession => "Nie można zamknąć trwającej sesji",
         I18nKey::AgBadgeReady => "Gotowy",
         I18nKey::AgBadgeLive => "Na żywo",
         I18nKey::AgWelcomeBody => {
@@ -673,49 +674,28 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "Obraz",
         I18nKey::HsCatRemote => "Zdalny",
         I18nKey::HsCatMcp => "MCP",
-        I18nKey::HsCatPlugins => "Plugins",
-        I18nKey::PluginsDescription => "Manage BLXCode plugin packages and runtime command providers.",
-
-        I18nKey::PluginsHeading => "Plugin Packages",
-
-        I18nKey::PluginsInstall => "Install",
-
-        I18nKey::PluginsRefresh => "Refresh",
-
-        I18nKey::PluginsEmpty => "No plugins installed.",
-
-        I18nKey::PluginsBuiltIn => "Built-in",
-
-        I18nKey::PluginsInstalled => "Installed",
-
-        I18nKey::PluginsEnabled => "Enabled",
-
-        I18nKey::PluginsDisabled => "Disabled",
-
-        I18nKey::PluginsEnable => "Enable",
-
-        I18nKey::PluginsDisable => "Disable",
-
-        I18nKey::PluginsRemove => "Remove",
-
-        I18nKey::PluginsInstallTitle => "Install plugin",
-
-        I18nKey::PluginsGithubUrl => "GitHub URL",
-
+        I18nKey::HsCatPlugins => "Wtyczki",
+        I18nKey::PluginsDescription => "Zarządzaj pakietami wtyczek BLXCode i dostawcami poleceń wykonawczych.",
+        I18nKey::PluginsHeading => "Pakiety wtyczek",
+        I18nKey::PluginsInstall => "Zainstalować",
+        I18nKey::PluginsRefresh => "Odświeżać",
+        I18nKey::PluginsEmpty => "Brak zainstalowanych wtyczek.",
+        I18nKey::PluginsBuiltIn => "Wbudowany",
+        I18nKey::PluginsInstalled => "Zainstalowany",
+        I18nKey::PluginsEnabled => "Włączony",
+        I18nKey::PluginsDisabled => "Wyłączony",
+        I18nKey::PluginsEnable => "Włączać",
+        I18nKey::PluginsDisable => "Wyłączyć",
+        I18nKey::PluginsRemove => "Usunąć",
+        I18nKey::PluginsInstallTitle => "Zainstaluj wtyczkę",
+        I18nKey::PluginsGithubUrl => "Adres URL GitHuba",
         I18nKey::PluginsGithubUrlPlaceholder => "https://github.com/owner/repo/tree/main/package",
-
         I18nKey::PluginsGitRef => "Git ref",
-
-        I18nKey::PluginsPackageDir => "Package directory",
-
-        I18nKey::PluginsInstallProgress => "Installing plugin…",
-
-        I18nKey::PluginsInstallDone => "Plugin installed.",
-
-        I18nKey::PluginsCategoryRuntime => "Runtime",
-
-        I18nKey::PluginsCategoryOther => "Other",
-
+        I18nKey::PluginsPackageDir => "Katalog pakietów",
+        I18nKey::PluginsInstallProgress => "Instaluję wtyczkę…",
+        I18nKey::PluginsInstallDone => "Wtyczka zainstalowana.",
+        I18nKey::PluginsCategoryRuntime => "Czas wykonania",
+        I18nKey::PluginsCategoryOther => "Inny",
         I18nKey::McpDescription => "Zarejestruj serwery MCP, z których mogą korzystać agent w aplikacji i dołączone terminale CLI.",
         I18nKey::McpHeading => "Serwery MCP",
         I18nKey::McpResetHint => "Zmiany zaczną obowiązywać na czacie dopiero po zresetowaniu sesji.",

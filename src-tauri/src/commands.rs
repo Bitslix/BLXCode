@@ -1,5 +1,5 @@
 use crate::agent::protocol::AgentChatMode;
-use crate::agent::{dispatch_user_turn, AgentEngineState, EventEnvelope, UserTurn};
+use crate::agent::{dispatch_user_turn, AgentEngineRegistry, EventEnvelope, UserTurn};
 use crate::agent_settings::provider_status_json;
 use crate::browser_host::BrowserHost;
 use crate::pty_host::{path_nav_exec, PathNavResult, PtyManager};
@@ -13,31 +13,38 @@ const AGENT_IMAGE_MAX_BYTES: u64 = 8 * 1024 * 1024;
 #[tauri::command]
 pub fn agent_submit_turn(
     app: AppHandle,
+    session_id: Option<String>,
     turn: UserTurn,
-    agent: State<'_, Arc<AgentEngineState>>,
+    agent: State<'_, Arc<AgentEngineRegistry>>,
 ) -> Result<(), String> {
-    dispatch_user_turn(&app, &agent, turn)
+    let engine = agent.engine(session_id);
+    dispatch_user_turn(&app, &engine, turn)
 }
 
 #[tauri::command]
 pub fn agent_poll_events(
+    session_id: Option<String>,
     max: usize,
-    agent: State<'_, Arc<AgentEngineState>>,
+    agent: State<'_, Arc<AgentEngineRegistry>>,
 ) -> Vec<EventEnvelope> {
-    agent.drain(max.clamp(1, 512))
+    agent.engine(session_id).drain(max.clamp(1, 512))
 }
 
 #[tauri::command]
-pub fn agent_abort(agent: State<'_, Arc<AgentEngineState>>) {
-    agent.request_cancel();
+pub fn agent_abort(session_id: Option<String>, agent: State<'_, Arc<AgentEngineRegistry>>) {
+    agent.engine(session_id).request_cancel();
 }
 
 #[tauri::command]
-pub fn agent_clear_conversation(agent: State<'_, Arc<AgentEngineState>>) -> Result<(), String> {
-    if agent.busy() {
+pub fn agent_clear_conversation(
+    session_id: Option<String>,
+    agent: State<'_, Arc<AgentEngineRegistry>>,
+) -> Result<(), String> {
+    let engine = agent.engine(session_id);
+    if engine.busy() {
         return Err("Agent ist noch beschäftigt. Bitte zuerst abbrechen oder warten.".into());
     }
-    agent.clear_conversation();
+    engine.clear_conversation();
     // Drop live MCP clients so the next turn reconnects from the (possibly
     // edited) registry. This is the contract surfaced in the MCP settings UI.
     crate::mcp::runtime::reset_blocking();
@@ -436,8 +443,10 @@ pub struct ToolResultPayload {
 #[tauri::command]
 pub fn agent_submit_tool_result(
     payload: ToolResultPayload,
-    agent: State<'_, Arc<AgentEngineState>>,
+    session_id: Option<String>,
+    agent: State<'_, Arc<AgentEngineRegistry>>,
 ) -> Result<(), String> {
+    let engine = agent.engine_for_tool_result(session_id, &payload.call_id);
     if payload
         .data
         .as_ref()
@@ -445,9 +454,9 @@ pub fn agent_submit_tool_result(
         .and_then(|value| value.as_str())
         == Some("allow_all")
     {
-        agent.set_chat_mode_override(AgentChatMode::AllowAll);
+        engine.set_chat_mode_override(AgentChatMode::AllowAll);
     }
-    agent.deliver_client_tool_result(&payload.call_id, payload.ok, payload.message, payload.data)
+    engine.deliver_client_tool_result(&payload.call_id, payload.ok, payload.message, payload.data)
 }
 
 /// Returns the user's home directory as a string. Used as the default for

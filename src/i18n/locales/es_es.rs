@@ -150,26 +150,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "Red",
         I18nKey::TbViewModeCanvas => "Lienzo",
         I18nKey::TbViewModeSwarm => "Enjambre",
-        I18nKey::TbRunMenu => "Run",
-
-        I18nKey::TbRunRefresh => "Refresh run commands",
-
-        I18nKey::TbRunEmpty => "No run commands found.",
-
-        I18nKey::TbRunLoading => "Loading run commands…",
-
-        I18nKey::TbRunDev => "Dev",
-
-        I18nKey::TbRunRun => "Run",
-
-        I18nKey::TbRunDebug => "Debug",
-
-        I18nKey::TbRunTest => "Test",
-
-        I18nKey::TbRunBuild => "Build",
-
-        I18nKey::TbRunOther => "Other",
-
+        I18nKey::TbRunMenu => "Correr",
+        I18nKey::TbRunRefresh => "Actualizar ejecutar comandos",
+        I18nKey::TbRunEmpty => "No se encontraron comandos de ejecución.",
+        I18nKey::TbRunLoading => "Cargando comandos de ejecución...",
+        I18nKey::TbRunDev => "desarrollador",
+        I18nKey::TbRunRun => "Correr",
+        I18nKey::TbRunDebug => "Depurar",
+        I18nKey::TbRunTest => "Prueba",
+        I18nKey::TbRunBuild => "Construir",
+        I18nKey::TbRunOther => "Otro",
         I18nKey::CanvasSlotLabel => "Ranura {id}",
         I18nKey::CanvasResizeNode => "Cambiar el tamaño del nodo terminal",
         I18nKey::CanvasEdgeSend => "Enviar salida de borde",
@@ -457,6 +447,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgStateStandby => "Apoyar",
         I18nKey::AgTagline => "Asistente de espacio de trabajo",
         I18nKey::AgChatHeading => "Registro de chat",
+        I18nKey::AgNewSession => "Nueva sesión",
+        I18nKey::AgCloseSession => "Cerrar sesión",
+        I18nKey::AgSessionTabsAria => "Sesiones de chat de agentes",
+        I18nKey::AgSessionRunning => "Correr",
+        I18nKey::AgSessionIdle => "inactivo",
+        I18nKey::AgSessionThinking => "Pensamiento",
+        I18nKey::AgSessionNeedsInput => "Necesita información",
+        I18nKey::AgSessionErrored => "Error",
+        I18nKey::AgSessionRestored => "Restaurado",
+        I18nKey::AgSessionUnread => "Actualizaciones en segundo plano no leídas",
+        I18nKey::AgCannotCloseRunningSession => "No se puede cerrar una sesión en ejecución",
         I18nKey::AgBadgeReady => "Listo",
         I18nKey::AgBadgeLive => "Vivir",
         I18nKey::AgWelcomeBody => {
@@ -677,49 +678,28 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "Imagen",
         I18nKey::HsCatRemote => "Remoto",
         I18nKey::HsCatMcp => "MCP",
-        I18nKey::HsCatPlugins => "Plugins",
-        I18nKey::PluginsDescription => "Manage BLXCode plugin packages and runtime command providers.",
-
-        I18nKey::PluginsHeading => "Plugin Packages",
-
-        I18nKey::PluginsInstall => "Install",
-
-        I18nKey::PluginsRefresh => "Refresh",
-
-        I18nKey::PluginsEmpty => "No plugins installed.",
-
-        I18nKey::PluginsBuiltIn => "Built-in",
-
-        I18nKey::PluginsInstalled => "Installed",
-
-        I18nKey::PluginsEnabled => "Enabled",
-
-        I18nKey::PluginsDisabled => "Disabled",
-
-        I18nKey::PluginsEnable => "Enable",
-
-        I18nKey::PluginsDisable => "Disable",
-
-        I18nKey::PluginsRemove => "Remove",
-
-        I18nKey::PluginsInstallTitle => "Install plugin",
-
-        I18nKey::PluginsGithubUrl => "GitHub URL",
-
+        I18nKey::HsCatPlugins => "Complementos",
+        I18nKey::PluginsDescription => "Administre paquetes de complementos BLXCode y proveedores de comandos en tiempo de ejecución.",
+        I18nKey::PluginsHeading => "Paquetes de complementos",
+        I18nKey::PluginsInstall => "Instalar",
+        I18nKey::PluginsRefresh => "Refrescar",
+        I18nKey::PluginsEmpty => "No hay complementos instalados.",
+        I18nKey::PluginsBuiltIn => "Incorporado",
+        I18nKey::PluginsInstalled => "Instalado",
+        I18nKey::PluginsEnabled => "Activado",
+        I18nKey::PluginsDisabled => "Desactivado",
+        I18nKey::PluginsEnable => "Permitir",
+        I18nKey::PluginsDisable => "Desactivar",
+        I18nKey::PluginsRemove => "Eliminar",
+        I18nKey::PluginsInstallTitle => "Instalar complemento",
+        I18nKey::PluginsGithubUrl => "URL de GitHub",
         I18nKey::PluginsGithubUrlPlaceholder => "https://github.com/owner/repo/tree/main/package",
-
-        I18nKey::PluginsGitRef => "Git ref",
-
-        I18nKey::PluginsPackageDir => "Package directory",
-
-        I18nKey::PluginsInstallProgress => "Installing plugin…",
-
-        I18nKey::PluginsInstallDone => "Plugin installed.",
-
-        I18nKey::PluginsCategoryRuntime => "Runtime",
-
-        I18nKey::PluginsCategoryOther => "Other",
-
+        I18nKey::PluginsGitRef => "referencia de git",
+        I18nKey::PluginsPackageDir => "Directorio de paquetes",
+        I18nKey::PluginsInstallProgress => "Instalando complemento…",
+        I18nKey::PluginsInstallDone => "Complemento instalado.",
+        I18nKey::PluginsCategoryRuntime => "Tiempo de ejecución",
+        I18nKey::PluginsCategoryOther => "Otro",
         I18nKey::McpDescription => {
             "Registre los servidores MCP que pueden usar el agente en la aplicación y las CLI de terminal incluidas."
         }
@@ -1463,7 +1443,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgentImageDraggedDiffHasNoPath => "La diferencia arrastrada no tiene camino.",
         I18nKey::AgentImageWorkspaceHasNoPath => "El espacio de trabajo no tiene camino.",
         I18nKey::AgentImageDraggedCommitHasNoId => "La confirmación arrastrada no tiene identificación.",
-        I18nKey::AgentPanelJumpToBottom => "Jump to bottom",
+        I18nKey::AgentPanelJumpToBottom => "Saltar al fondo",
         I18nKey::CommonIdle => "Inactivo",
         I18nKey::AgentPanelPromptEnhancementReturnedAnEmptyPrompt => "La mejora del mensaje devolvió un mensaje vacío.",
         I18nKey::AgentPanelAgentError => "error del agente",

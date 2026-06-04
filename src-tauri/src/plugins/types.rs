@@ -3,9 +3,13 @@ use std::collections::BTreeMap;
 
 pub const PLUGIN_MANIFEST_FILE: &str = "blx-plugin.json";
 pub const CATEGORY_RUNTIME: &str = "runtime";
+#[allow(dead_code)]
 pub const CATEGORY_AGENT: &str = "agent";
+#[allow(dead_code)]
 pub const CATEGORY_MCP: &str = "mcp";
+#[allow(dead_code)]
 pub const CATEGORY_UI: &str = "ui";
+#[allow(dead_code)]
 pub const CATEGORY_WORKFLOW: &str = "workflow";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -221,6 +225,7 @@ impl PluginRegistry {
     }
 }
 
+#[allow(dead_code)]
 pub fn known_category_ids() -> &'static [&'static str] {
     &[
         CATEGORY_RUNTIME,
@@ -231,6 +236,7 @@ pub fn known_category_ids() -> &'static [&'static str] {
     ]
 }
 
+#[allow(dead_code)]
 pub fn is_known_category_id(id: &str) -> bool {
     known_category_ids().contains(&id)
 }
@@ -273,6 +279,7 @@ pub fn normalize_category_id(raw: &str) -> Result<String, String> {
     Ok(value.to_string())
 }
 
+#[allow(dead_code)]
 pub fn ui_category_group(category: &str) -> &str {
     if is_known_category_id(category) {
         category

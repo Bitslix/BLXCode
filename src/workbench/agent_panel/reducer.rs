@@ -13,14 +13,16 @@ use leptos::prelude::*;
 
 #[inline]
 fn persist_agent_timeline(
-    persist: Option<(WorkbenchService, u64)>,
+    persist: Option<(WorkbenchService, u64, Option<String>)>,
     timeline: RwSignal<TimelineDoc>,
 ) {
-    if let Some((wb, workspace_id)) = persist {
-        wb.set_workspace_agent_timeline(
-            workspace_id,
-            timeline.get_untracked().sanitize_for_persistence(),
-        );
+    if let Some((wb, workspace_id, session_id)) = persist {
+        let next = timeline.get_untracked().sanitize_for_persistence();
+        if let Some(session_id) = session_id {
+            wb.set_workspace_agent_session_timeline(workspace_id, &session_id, next);
+        } else {
+            wb.set_workspace_agent_timeline(workspace_id, next);
+        }
     }
 }
 
@@ -29,12 +31,12 @@ pub fn apply_envelope(
     timeline: RwSignal<TimelineDoc>,
     task_snapshot: RwSignal<TaskSnapshot>,
     loc: Locale,
-    persist: Option<(WorkbenchService, u64)>,
+    persist: Option<(WorkbenchService, u64, Option<String>)>,
 ) {
     match &env.event {
         AgentEvent::TaskSnapshot { snapshot } => {
             task_snapshot.set(snapshot.clone());
-            if let Some((wb, ws_id)) = persist {
+            if let Some((wb, ws_id, _)) = persist {
                 crate::workbench::agent_context_handoff::store_task_snapshot(
                     ws_id,
                     snapshot.clone(),
@@ -47,7 +49,7 @@ pub fn apply_envelope(
         _ => {}
     }
 
-    timeline.update(|doc| apply_event_to_doc(doc, env, loc, persist));
+    timeline.update(|doc| apply_event_to_doc(doc, env, loc, persist.clone()));
     persist_agent_timeline(persist, timeline);
 }
 
@@ -55,7 +57,7 @@ fn apply_event_to_doc(
     doc: &mut TimelineDoc,
     env: &EventEnvelope,
     loc: Locale,
-    persist: Option<(WorkbenchService, u64)>,
+    persist: Option<(WorkbenchService, u64, Option<String>)>,
 ) {
     ensure_turn(doc);
     match &env.event {
@@ -309,7 +311,7 @@ fn apply_event_to_doc(
                 elapsed_ms: *elapsed_ms,
                 cost_usd: *cost_usd,
             };
-            if let Some((wb, ws_id)) = persist {
+            if let Some((wb, ws_id, session_id)) = persist {
                 // Context-window occupancy tracks only the main agent's
                 // provider rounds — subagent rounds (agent_id Some) live in
                 // their own windows, and tool-exec events carry no prompt.
@@ -319,15 +321,28 @@ fn apply_event_to_doc(
                     } else {
                         None
                     };
-                let _ = wb.record_chat_turn_usage(
-                    ws_id,
-                    *turn_generation,
-                    *input_tokens,
-                    *output_tokens,
-                    *elapsed_ms,
-                    *cost_usd,
-                    round_input_tokens,
-                );
+                let _ = if let Some(session_id) = session_id.as_deref() {
+                    wb.record_chat_turn_usage_for_session(
+                        ws_id,
+                        session_id,
+                        *turn_generation,
+                        *input_tokens,
+                        *output_tokens,
+                        *elapsed_ms,
+                        *cost_usd,
+                        round_input_tokens,
+                    )
+                } else {
+                    wb.record_chat_turn_usage(
+                        ws_id,
+                        *turn_generation,
+                        *input_tokens,
+                        *output_tokens,
+                        *elapsed_ms,
+                        *cost_usd,
+                        round_input_tokens,
+                    )
+                };
             }
             match kind {
                 TurnUsageKind::ToolExec => {

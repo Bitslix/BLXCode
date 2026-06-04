@@ -81,7 +81,7 @@ pub fn McpSettingsPane() -> impl IntoView {
 
     let reset_session = move |_| {
         leptos::task::spawn_local(async move {
-            match agent_clear_conversation().await {
+            match agent_clear_conversation(None).await {
                 Ok(()) => {
                     status.set(String::new());
                     needs_reload.set(false);
