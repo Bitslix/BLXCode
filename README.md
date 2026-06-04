@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-f4a261?style=for-the-badge" alt="MIT License" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.5.0-8a7cff?style=for-the-badge" alt="Version 0.5.0" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.5.1-8a7cff?style=for-the-badge" alt="Version 0.5.1" /></a>
   <img src="https://img.shields.io/badge/Rust-2021-b7410e?style=for-the-badge&logo=rust&logoColor=white" alt="Rust 2021" />
   <img src="https://img.shields.io/badge/Tauri-2-24c8db?style=for-the-badge&logo=tauri&logoColor=white" alt="Tauri 2" />
   <img src="https://img.shields.io/badge/Leptos-0.8-ef3939?style=for-the-badge" alt="Leptos 0.8" />
@@ -38,7 +38,7 @@
 
 **BLXCode** is an open-source desktop workbench for running AI coding agents beside real terminals, MCP tools, project memory, Markdown plans, tasks, diagrams, Git, and an embedded browser. Built with **Tauri 2**, **Rust**, **Leptos**, and **Trunk**.
 
-Create a workspace, assign terminal slots to Claude, Codex, Gemini, OpenCode, or Cursor, connect local or remote MCP servers, keep durable notes under `.agents/`, track work with plans and a Kanban board, generate Mermaid diagrams, preview and diff files in the center pane, and talk to model providers from the same interface — all local-first, with data you can inspect on disk.
+Create a workspace, assign terminal slots to Claude, Codex, Gemini, OpenCode, or Cursor, connect local or remote MCP servers, manage Git worktrees, keep durable notes under `.agents/`, track work with plans and a Kanban board, generate and edit Mermaid diagrams, preview and diff files in the center pane, and talk to model providers from the same interface — all local-first, with data you can inspect on disk.
 
 ## Features
 
@@ -50,7 +50,7 @@ Create a workspace, assign terminal slots to Claude, Codex, Gemini, OpenCode, or
 | 📑 **Center tabs** | VS Code–style tab strip: Terminals, file preview, diff viewer, Settings |
 | 🧩 **Multi-terminal grids** | Preset layouts, split panes, drag-and-drop slot reorder, session resume |
 | 📂 **Sidebar** | Project Files (new file/folder), **File Diff** (stage, commit, push), Git graph (fetch/pull) |
-| 🔔 **Titlebar & status** | Custom cross-platform titlebar, notification feed, process status line, Navigate menu |
+| 🔔 **Titlebar & status** | Custom cross-platform titlebar, notification feed, process status line, Navigate and Run menus |
 | ⌨️ **Shortcuts** | tmux-style `Ctrl+b` chords, command palette actions, Vim editor mode |
 | 🎨 **32 themes** | Redesigned BLXCode, BLXCode Legacy, Dracula, Catppuccin, Nord, light variants, and more |
 
@@ -62,6 +62,7 @@ Create a workspace, assign terminal slots to Claude, Codex, Gemini, OpenCode, or
 | 📜 **Policy docs** | `LICENSE`, `README`, `CONTRIBUTING`, `SECURITY` — rendered with hero banners |
 | 🔀 **Diff viewer** | Unified diffs in center tabs; commit (optional AI message) from the toolbar |
 | 🌿 **Git sync** | Fetch, pull, and push from the sidebar; VS Code–style graph; live status watcher |
+| 🌱 **Worktrees** | Create, open, refresh, and safely remove local or SSH-remote Git worktree workspaces |
 | ✂️ **Code handoff** | Drag-select line ranges → insert into terminal or attach to agent |
 
 ### Plans, memory & tasks
@@ -70,7 +71,7 @@ Create a workspace, assign terminal slots to Claude, Codex, Gemini, OpenCode, or
 |---|---|
 | 📋 **Plan Manager** | Markdown plans under `.agents/plans/`, auto `PLANS.md` index, load-into-agent |
 | 📊 **Kanban board** | Pinned workspace board with plan/task lanes, search, DnD, Markdown write-back |
-| 🧭 **Mermaid diagrams** | Agent-authored diagrams persisted with plans; gallery view; Markdown/PDF export |
+| 🧭 **Mermaid diagrams** | Agent-authored diagrams persisted with plans; interactive pan/zoom, source editing, Markdown/PDF export |
 | 🧠 **Memory** | Categories, learnings, architecture map, HeartBeat Memory Indexer, 2D/3D graph |
 | ✅ **Tasks** | AI-authored plans/tasks, `.blxcode/tasks/`, plan-linked grouping in the agent panel |
 
@@ -81,6 +82,7 @@ Create a workspace, assign terminal slots to Claude, Codex, Gemini, OpenCode, or
 | 🤖 **Providers** | OpenRouter, Anthropic, OpenAI, Ollama, LM Studio, Hugging Face, Cloudflare, Together, Portkey |
 | 🔌 **MCP tools** | stdio/HTTP MCP servers for the in-app agent and terminal CLIs with managed project configs |
 | 🛠️ **Core skills** | Slim system prompt + bundled skills; shell, git, workspace search, web tools |
+| 🧩 **Plugins** | Built-in and GitHub-installed runtime plugins discover project run/dev/test/build commands |
 | 🔍 **Subagents** | Parallel `scout` / `review` / `security_analyst` runs with timeline cards |
 | 🖼️ **Image mode** | Inline chat images; fal.ai support; output under `.blxcode/generated/` |
 | 🎙️ **Voice** | STT, TTS, push-to-talk, local Whisper; OpenAI, OpenRouter, AWS Polly |
@@ -99,14 +101,14 @@ Create a workspace, assign terminal slots to Claude, Codex, Gemini, OpenCode, or
 
 ## What's new
 
-**Latest release: [0.5.0](docs/releases/v0.5.0.md)** · [technical changelog](CHANGELOG.md) — MCP, nine text providers, workspace Kanban, Mermaid diagrams, HeartBeat Memory Indexer, notifications, beta updates, 32 themes, Vim mode, push-to-talk, and named terminal agents.
+**Latest release: [0.5.1](docs/releases/v0.5.1.md)** · [technical changelog](CHANGELOG.md) — Git worktree workspaces, plugin packages, a titlebar Run menu, and editable Mermaid diagrams with pan, zoom, save, and revert.
 
 Highlights:
 
-- Register stdio/HTTP MCP servers once and expose them to the in-app agent plus Claude, Codex, Gemini, OpenCode, and Cursor terminal CLIs.
-- Plan work in the new pinned Kanban board, create AI plans/tasks, and generate Mermaid diagrams that travel with `.agents/plans/`.
-- Use Ollama and LM Studio locally, or Anthropic, OpenAI, OpenRouter, Hugging Face, Cloudflare Workers AI, Together AI, and Portkey from the same agent settings.
-- Track background work through the notification feed, process status line, HeartBeat services, and Memory Indexer.
+- Create, open, refresh, and safely remove Git worktrees as first-class local or Remote SSH workspaces.
+- Use the new titlebar **Run** menu to discover common project commands and launch them in a fresh terminal slot.
+- Manage built-in and GitHub-installed plugin packages from **Settings -> Plugins**.
+- Pan, zoom, edit, save, and revert Mermaid diagrams directly from the Diagram gallery or `.mmd` / `.mermaid` file previews.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full technical history and [docs/releases/](docs/releases/) for user-facing release notes.
 
@@ -297,7 +299,7 @@ BLXCode ships **14 locales** with compile-time string checks. Change language vi
 
 ## Status
 
-BLXCode is early-stage open source. The workbench, BLXCode Agent, MCP support, Kanban plans, Mermaid diagrams, sidebar Git, memory architecture map, and settings revamp are in active use on `main`; APIs and on-disk formats may still evolve. Current crate version: **0.5.0**.
+BLXCode is early-stage open source. The workbench, BLXCode Agent, MCP support, Kanban plans, Mermaid diagrams, Git worktrees, plugin packages, sidebar Git, memory architecture map, and settings revamp are in active use on `main`; APIs and on-disk formats may still evolve. Current crate version: **0.5.1**.
 
 ## Community
 
