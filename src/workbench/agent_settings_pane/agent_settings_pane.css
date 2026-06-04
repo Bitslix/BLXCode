@@ -257,3 +257,15 @@
   color: var(--accent-cool, var(--accent));
   cursor: pointer;
 }
+
+/* Save confirmation (auto-save). */
+.agent-settings-pane .harness-status {
+  margin: 0;
+  font-size: 0.76rem;
+  color: color-mix(in srgb, var(--success, var(--accent)) 85%, var(--text));
+}
+
+/* Orb field: keep the switch + hint left-aligned under the label. */
+.agent-field--orb {
+  align-items: flex-start;
+}
