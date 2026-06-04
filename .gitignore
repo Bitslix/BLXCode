@@ -22,5 +22,10 @@ frontend-js/node_modules/
 scripts/codemirror-bundle/node_modules/
 scripts/codemirror-bundle/bun.lock
 scripts/codemirror-bundle/package-lock.json
-src-remotion/
 target-codex-check/
+src-remotion/node_modules/
+src-remotion/dist/
+src-remotion/bun.lock
+src-remotion/package-lock.json
+src-remotion/output/
+src-remotion/out/
