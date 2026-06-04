@@ -11,7 +11,7 @@ use leptos::html;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use wasm_bindgen::JsCast;
 
 use crate::agent_wire::AgentChatMode;
@@ -19,11 +19,37 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_provider_models, agent_settings_get, agent_settings_save, is_tauri_shell,
-    AgentProviderSettingsView, ProviderModelEntry, ThinkingLevel,
+    AgentProviderKind, AgentProviderSettingsView, ProviderModelEntry, ThinkingLevel,
 };
 use crate::workbench::WorkbenchService;
 
 const MODEL_FAVORITES_STORAGE_KEY: &str = "blxcode.agent.model_favorites.v1";
+
+const COMPOSER_MODEL_PROVIDERS: [AgentProviderKind; 3] = [
+    AgentProviderKind::Openrouter,
+    AgentProviderKind::Openai,
+    AgentProviderKind::Anthropic,
+];
+
+fn provider_cache_key(provider: AgentProviderKind) -> String {
+    provider.as_str().to_string()
+}
+
+fn initial_provider_model_cache(
+    view: &AgentProviderSettingsView,
+) -> BTreeMap<String, Vec<ProviderModelEntry>> {
+    let mut cache = view.model_caches.clone();
+    cache
+        .entry(provider_cache_key(AgentProviderKind::Openrouter))
+        .or_insert_with(|| view.model_cache_openrouter.clone());
+    cache
+        .entry(provider_cache_key(AgentProviderKind::Openai))
+        .or_insert_with(|| view.model_cache_openai.clone());
+    cache
+        .entry(provider_cache_key(AgentProviderKind::Anthropic))
+        .or_insert_with(|| view.model_cache_anthropic.clone());
+    cache
+}
 
 fn thinking_levels() -> [ThinkingLevel; 5] {
     [
@@ -241,8 +267,8 @@ pub fn Composer(
     let model_open = RwSignal::new(false);
     let think_open = RwSignal::new(false);
 
-    let models = RwSignal::new(Vec::<ProviderModelEntry>::new());
-    let models_loading = RwSignal::new(false);
+    let provider_models = RwSignal::new(BTreeMap::<String, Vec<ProviderModelEntry>>::new());
+    let models_loading = RwSignal::new(HashSet::<String>::new());
     let model_filter = RwSignal::new(String::new());
     let model_favorites = RwSignal::new(read_model_favorites());
 
@@ -281,6 +307,7 @@ pub fn Composer(
         leptos::task::spawn_local(async move {
             if let Ok(view) = agent_settings_get().await {
                 thinking.set(view.thinking_level);
+                provider_models.set(initial_provider_model_cache(&view));
                 settings.set(Some(view));
             }
         });
@@ -321,21 +348,33 @@ pub fn Composer(
         });
     };
 
-    // Lazy-load the provider's model list the first time the picker opens.
+    // Lazy-load each provider's model list the first time the picker opens.
     let load_models = move || {
-        if !is_tauri_shell() || models_loading.get_untracked() {
+        if !is_tauri_shell() {
             return;
         }
-        let Some(provider) = settings.get_untracked().map(|v| v.provider) else {
-            return;
-        };
-        models_loading.set(true);
-        leptos::task::spawn_local(async move {
-            if let Ok(resp) = agent_provider_models(provider).await {
-                models.set(resp.entries);
+        for provider in COMPOSER_MODEL_PROVIDERS {
+            let key = provider_cache_key(provider);
+            let has_models = provider_models
+                .with_untracked(|cache| cache.get(&key).is_some_and(|entries| !entries.is_empty()));
+            let is_loading = models_loading.with_untracked(|loading| loading.contains(&key));
+            if has_models || is_loading {
+                continue;
             }
-            models_loading.set(false);
-        });
+            models_loading.update(|loading| {
+                loading.insert(key.clone());
+            });
+            leptos::task::spawn_local(async move {
+                if let Ok(resp) = agent_provider_models(provider).await {
+                    provider_models.update(|cache| {
+                        cache.insert(provider_cache_key(resp.provider), resp.entries);
+                    });
+                }
+                models_loading.update(|loading| {
+                    loading.remove(&key);
+                });
+            });
+        }
     };
 
     let submit = move || {
@@ -422,7 +461,16 @@ pub fn Composer(
                             <ul class="agent-composer__model-list">
                                 {move || {
                                     let filter = model_filter.get().to_lowercase();
-                                    let active = settings.get().map(|v| v.model_id).unwrap_or_default();
+                                    let active_settings = settings.get();
+                                    let active = active_settings
+                                        .as_ref()
+                                        .map(|v| v.model_id.clone())
+                                        .unwrap_or_default();
+                                    let active_provider = active_settings
+                                        .as_ref()
+                                        .map(|v| v.provider)
+                                        .unwrap_or(AgentProviderKind::Openrouter);
+                                    let active_provider_key = provider_cache_key(active_provider);
                                     let favorites = model_favorites.get();
                                     let matches_filter = |m: &ProviderModelEntry| {
                                         filter.is_empty()
@@ -431,7 +479,11 @@ pub fn Composer(
                                     };
                                     let mut active_row = None::<ProviderModelEntry>;
                                     let mut rest = Vec::<ProviderModelEntry>::new();
-                                    for model in models.get().into_iter().filter(matches_filter) {
+                                    let models = provider_models
+                                        .get()
+                                        .remove(&active_provider_key)
+                                        .unwrap_or_default();
+                                    for model in models.into_iter().filter(matches_filter) {
                                         if model.id == active && active_row.is_none() {
                                             active_row = Some(model);
                                         } else {

@@ -42,7 +42,7 @@ OpenRouter model/provider APIs do not provide logo assets, so BLXCode should use
 
 ## Tasks
 
-- [ ] `provider-model-state` - Add per-provider model loading/cache state in the Composer picker.
+- [x] `provider-model-state` - Add per-provider model loading/cache state in the Composer picker.
 - [ ] `provider-accordion-ui` - Render provider groups as a one-open accordion with active-provider default.
 - [ ] `provider-logo-map` - Add local provider/model-owner logo mapping with fallback badges.
 - [ ] `cross-provider-select` - Persist provider and model when selecting from another provider group.
