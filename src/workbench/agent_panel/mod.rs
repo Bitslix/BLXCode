@@ -16,7 +16,8 @@ pub(crate) mod turn_metrics_bar;
 mod voice_orb;
 
 use crate::agent_wire::{
-    AgentChatMode, AgentContextKind, AgentEvent, EventEnvelope, TaskSnapshot, TurnMetrics, UserTurn,
+    AgentChatMode, AgentContextKind, AgentEvent, EventEnvelope, TaskSnapshot, TurnMetrics,
+    UserTurn, WorkspaceScope, WorkspaceWorktreeMeta,
 };
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
@@ -1113,6 +1114,43 @@ fn resolve_effective_workspace_root(wb: &WorkbenchService) -> Option<String> {
     (!t.is_empty()).then(|| t.to_owned())
 }
 
+fn resolve_workspace_scope(wb: &WorkbenchService, ws_id: u64) -> Option<WorkspaceScope> {
+    wb.workspaces().with_untracked(|list| {
+        let workspace = list.iter().find(|workspace| workspace.id == ws_id)?;
+        let root = workspace.cwd.trim().to_string().into_non_empty();
+        Some(WorkspaceScope {
+            root,
+            connection_id: workspace.remote_connection_id.clone(),
+            worktree: workspace
+                .worktree
+                .as_ref()
+                .map(|meta| WorkspaceWorktreeMeta {
+                    base_cwd: meta.base_cwd.clone(),
+                    worktree_cwd: meta.worktree_cwd.clone(),
+                    branch: meta.branch.clone(),
+                    head: meta.head.clone(),
+                    git_common_dir: meta.git_common_dir.clone(),
+                    main_worktree_cwd: meta.main_worktree_cwd.clone(),
+                    created_by_blxcode: meta.created_by_blxcode,
+                }),
+        })
+    })
+}
+
+trait IntoNonEmptyString {
+    fn into_non_empty(self) -> Option<String>;
+}
+
+impl IntoNonEmptyString for String {
+    fn into_non_empty(self) -> Option<String> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self)
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn submit_turn(
     wb: WorkbenchService,
@@ -1221,6 +1259,7 @@ fn submit_turn(
     }
 
     let workspace_root = resolve_effective_workspace_root(&wb);
+    let workspace_scope = resolve_workspace_scope(&wb, ws_id);
     let context_items = wb.agent_context_for_workspace_untracked(ws_id);
     let transient_context_ids = transient_agent_context_ids(&context_items);
     let image_context_items = wb.pending_agent_images_for_workspace_untracked(ws_id);
@@ -1261,6 +1300,7 @@ fn submit_turn(
     let turn = UserTurn {
         prompt,
         workspace_root,
+        workspace_scope,
         chat_mode: chat_mode_value,
         session_role,
         voice_input,

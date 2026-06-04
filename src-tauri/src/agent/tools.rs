@@ -1150,6 +1150,35 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Client,
         },
         ToolDef {
+            name: "harness.worktree_list",
+            description: "List Git worktrees for the active workspace or `baseCwd`. Use this before creating a worktree workspace.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "baseCwd": { "type": "string", "description": "Optional base repository cwd. Defaults to active workspace cwd." }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.create_worktree_workspace",
+            description: "Preview or create/open a Git worktree as a BLXCode workspace. Call first with `confirmed:false`; after the user confirms the exact base, branch, start point, path, and local/remote target, call again with `confirmed:true`.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "baseCwd": { "type": "string", "description": "Optional base repository cwd. Defaults to active workspace cwd." },
+                    "branch": { "type": "string" },
+                    "startPoint": { "type": "string", "description": "Optional start point, e.g. HEAD or origin/main." },
+                    "path": { "type": "string", "description": "Optional worktree path. Defaults to a sibling path derived from branch." },
+                    "confirmed": { "type": "boolean", "description": "false for preview/validation, true only after user confirmation." }
+                },
+                "required": ["branch", "confirmed"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
             name: "harness.workspace_list",
             description: "List open workspaces in the BLXCode workbench and identify the active workspace.",
             parameters: json!({

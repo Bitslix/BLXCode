@@ -43,7 +43,27 @@ pub fn head_commit(start: &Path) -> Option<String> {
 /// Returns true when `start` is inside a Git work tree (`.git` file or directory).
 #[must_use]
 pub fn is_git_repository(start: &Path) -> bool {
-    find_git_dir(start).is_some()
+    resolve_work_tree(start).is_some()
+}
+
+pub fn resolve_work_tree(start: &Path) -> Option<PathBuf> {
+    if git_cli_available() {
+        let output = command("git")
+            .arg("-C")
+            .arg(start)
+            .arg("rev-parse")
+            .arg("--show-toplevel")
+            .output()
+            .ok();
+        if let Some(output) = output.filter(|output| output.status.success()) {
+            let text = String::from_utf8_lossy(&output.stdout);
+            let trimmed = text.trim();
+            if !trimmed.is_empty() {
+                return Some(PathBuf::from(trimmed));
+            }
+        }
+    }
+    find_git_work_tree_from_files(start)
 }
 
 /// Whether the `git` executable runs successfully (`git --version`).
@@ -117,6 +137,18 @@ pub(crate) fn find_git_dir(start: &Path) -> Option<PathBuf> {
     None
 }
 
+fn find_git_work_tree_from_files(start: &Path) -> Option<PathBuf> {
+    let mut cur: Option<&Path> = Some(start);
+    while let Some(p) = cur {
+        let candidate = p.join(".git");
+        if candidate.is_dir() || candidate.is_file() {
+            return Some(p.to_path_buf());
+        }
+        cur = p.parent();
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,6 +163,28 @@ mod tests {
         assert_ne!(find_git_dir(&tmp).as_deref(), Some(local_git_dir.as_path()));
         fs::create_dir_all(tmp.join(".git")).unwrap();
         assert_eq!(find_git_dir(&tmp).as_deref(), Some(local_git_dir.as_path()));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn resolve_work_tree_detects_dot_git_file_owner() {
+        let tmp = std::env::temp_dir().join(format!("blx_git_wt_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        let worktree = tmp.join("feature");
+        let git_dir = tmp.join(".git").join("worktrees").join("feature");
+        fs::create_dir_all(&worktree).unwrap();
+        fs::create_dir_all(&git_dir).unwrap();
+        fs::write(
+            worktree.join(".git"),
+            format!("gitdir: {}\n", git_dir.display()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            find_git_work_tree_from_files(&worktree).as_deref(),
+            Some(worktree.as_path())
+        );
+
         let _ = fs::remove_dir_all(&tmp);
     }
 }

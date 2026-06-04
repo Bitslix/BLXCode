@@ -1831,6 +1831,8 @@ pub async fn ssh_remote_list_dirs(
 struct PtySpawnRemoteArgs {
     connection_id: String,
     terminal_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remote_dir: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     env: Vec<(String, String)>,
 }
@@ -1850,6 +1852,7 @@ pub async fn remote_exec_close(connection_id: String) -> Result<(), String> {
 pub async fn pty_spawn_remote(
     connection_id: String,
     terminal_key: String,
+    remote_dir: Option<String>,
     env: Vec<(String, String)>,
 ) -> Result<u64, String> {
     invoke_typed(
@@ -1857,6 +1860,7 @@ pub async fn pty_spawn_remote(
         PtySpawnRemoteArgs {
             connection_id,
             terminal_key,
+            remote_dir,
             env,
         },
     )
@@ -3866,6 +3870,121 @@ pub async fn git_commit_details(
         Args {
             cwd,
             oid,
+            connection_id,
+        },
+    )
+    .await
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitWorktreeEntry {
+    pub path: String,
+    pub branch: Option<String>,
+    pub head: Option<String>,
+    pub detached: bool,
+    pub bare: bool,
+    pub locked: bool,
+    pub locked_reason: Option<String>,
+    pub prunable: bool,
+    pub prunable_reason: Option<String>,
+    pub is_main: bool,
+    pub git_common_dir: Option<String>,
+    pub main_worktree_cwd: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitWorktreeCreateOutcome {
+    pub entry: GitWorktreeEntry,
+    pub created: bool,
+    pub matched_existing: bool,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitWorktreeRemoveOutcome {
+    pub path: String,
+    pub removed: bool,
+}
+
+pub async fn git_worktree_list(
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<Vec<GitWorktreeEntry>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    invoke_typed("git_worktree_list", Args { cwd, connection_id }).await
+}
+
+pub async fn git_worktree_open_info(
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<GitWorktreeEntry, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    invoke_typed("git_worktree_open_info", Args { cwd, connection_id }).await
+}
+
+pub async fn git_worktree_create(
+    base_cwd: String,
+    branch: String,
+    start_point: Option<String>,
+    path: String,
+    connection_id: Option<String>,
+) -> Result<GitWorktreeCreateOutcome, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        base_cwd: String,
+        branch: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        start_point: Option<String>,
+        path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    invoke_typed(
+        "git_worktree_create",
+        Args {
+            base_cwd,
+            branch,
+            start_point,
+            path,
+            connection_id,
+        },
+    )
+    .await
+}
+
+pub async fn git_worktree_remove(
+    base_cwd: String,
+    path: String,
+    connection_id: Option<String>,
+) -> Result<GitWorktreeRemoveOutcome, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        base_cwd: String,
+        path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    invoke_typed(
+        "git_worktree_remove",
+        Args {
+            base_cwd,
+            path,
             connection_id,
         },
     )

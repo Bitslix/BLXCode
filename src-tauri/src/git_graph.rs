@@ -1,7 +1,7 @@
 //! Commit graph data for the sidebar. The backend returns structured commits
 //! and lane geometry; the frontend owns all rendering.
 
-use crate::git_info::{find_git_dir, git_cli_available};
+use crate::git_info::{git_cli_available, resolve_work_tree as resolve_git_work_tree};
 use crate::git_remote::{remote_is_repository, remote_work_tree, run_git_remote};
 use crate::proc::command;
 use crate::pty_host::PtyManager;
@@ -271,12 +271,7 @@ fn resolve_work_tree(cwd: &str) -> Result<std::path::PathBuf, String> {
     if trimmed.is_empty() {
         return Err("cwd is empty".into());
     }
-    let git_dir =
-        find_git_dir(Path::new(trimmed)).ok_or_else(|| "not a git repository".to_string())?;
-    git_dir
-        .parent()
-        .map(Path::to_path_buf)
-        .ok_or_else(|| "invalid git dir".to_string())
+    resolve_git_work_tree(Path::new(trimmed)).ok_or_else(|| "not a git repository".to_string())
 }
 
 fn run_git(work_tree: &Path, args: &[&str]) -> Option<String> {

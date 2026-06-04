@@ -16,6 +16,15 @@ Creates and selects a new workspace in the UI.
 - `agentSlugs` — optional per-slot array like `["claude", "claude"]`
 - `cwd` — omit to use the active workspace cwd or the configured harness root
 
+### `harness.worktree_list { baseCwd? }`
+Lists Git worktrees for the active workspace or `baseCwd`. Use before creating a worktree.
+
+### `harness.create_worktree_workspace { baseCwd?, branch, startPoint?, path?, confirmed }`
+Previews or creates/opens a Git worktree as a BLXCode workspace.
+- First call with `confirmed:false`; report the exact base, branch, start point, path, and local/remote target to the user.
+- Only call with `confirmed:true` after the user explicitly confirms.
+- If the preview reports an existing matching branch/path, open/switch that worktree instead of requesting a duplicate.
+
 ### `harness.open_terminal { count?, agentSlug?, agentSlugs? }`
 Opens one or more terminal slots in the **active** workspace.
 - **Default:** call with no arguments `{}` for a single plain shell.

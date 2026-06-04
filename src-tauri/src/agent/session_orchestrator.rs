@@ -73,6 +73,7 @@ pub fn dispatch_user_turn(
         project_docs_block,
     );
     let workspace_root = turn.workspace_root.clone();
+    let workspace_scope = turn.workspace_scope.clone();
     let session_role = turn.session_role.clone();
     crate::agent::environment::note_workspace_change(workspace_root.as_deref());
     crate::agent::web_settings::refresh_runtime_from_app(app);
@@ -90,6 +91,7 @@ pub fn dispatch_user_turn(
                     prompt,
                     image_context_items,
                     workspace_root,
+                    workspace_scope,
                     session_role,
                 )
                 .await;
@@ -118,6 +120,7 @@ pub fn dispatch_user_turn(
                     prompt,
                     image_context_items,
                     workspace_root,
+                    workspace_scope,
                     session_role,
                 )
                 .await;

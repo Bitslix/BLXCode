@@ -201,11 +201,11 @@ jobs:
           if [ -n "$release_tag" ]; then
             tag_version="${release_tag#v}"
             project_version="$(python3 - <<'PY'
-import json
-with open("src-tauri/tauri.conf.json", encoding="utf-8") as f:
-    print(json.load(f)["version"])
-PY
-)"
+          import json
+          with open("src-tauri/tauri.conf.json", encoding="utf-8") as f:
+              print(json.load(f)["version"])
+          PY
+          )"
             if [ "$tag_version" != "$project_version" ]; then
               echo "::error::Release tag '$release_tag' does not match src-tauri/tauri.conf.json version '$project_version'. Run the release bump first and tag that commit."
               exit 1

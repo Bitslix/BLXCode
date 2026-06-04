@@ -259,6 +259,13 @@
   gap: 0.1rem;
 }
 
+.app-titlebar__popover--worktree {
+  left: 0;
+  right: auto;
+  width: min(360px, calc(100vw - 1rem));
+  max-width: min(360px, calc(100vw - 1rem));
+}
+
 .app-titlebar__popover-head {
   margin: 0;
   padding: 0.25rem 0.5rem 0.35rem;
@@ -342,6 +349,18 @@
   font-size: 0.68rem;
 }
 
+.app-titlebar__menu-note {
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.app-titlebar__menu-note--error {
+  color: var(--danger);
+}
+
 .app-titlebar__menu-item-caret {
   display: inline-flex;
   flex: 0 0 auto;
@@ -350,6 +369,62 @@
 
 .app-titlebar__submenu {
   position: relative;
+}
+
+.app-titlebar__worktree-list {
+  max-height: min(260px, calc(100vh - var(--titlebar-h) - 13rem));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.app-titlebar__worktree-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.app-titlebar__worktree-open {
+  min-width: 0;
+}
+
+.app-titlebar__worktree-label {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  line-height: 1.2;
+}
+
+.app-titlebar__worktree-create {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.3rem;
+  padding: 0.25rem;
+}
+
+.app-titlebar__worktree-input {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  color: var(--text);
+  padding: 0 0.5rem;
+  font: inherit;
+  font-size: 0.76rem;
+}
+
+.app-titlebar__worktree-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
+.app-titlebar__worktree-create-btn {
+  justify-content: center;
 }
 
 .app-titlebar__submenu--disabled {

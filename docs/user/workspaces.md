@@ -7,6 +7,7 @@ A BLXCode workspace is a project folder plus the UI state needed to work inside 
 BLXCode uses a **token-themed, cross-platform custom titlebar** instead of the OS default window chrome. The bar reads the active theme and includes:
 
 - A persistent **brand cluster** on the left.
+- A left-aligned **Worktree Management** menu, bound to the active workspace when that workspace belongs to a Git repository.
 - **Sidebar** and **right-panel** toggle buttons.
 - **Centered workspace breadcrumbs** with a live focused-terminal crumb that includes the slot marker plus the terminal title.
 - A compact **NAVIGATE** quick menu on the right with quick access to **Terminals**, **New terminal**, **Plans**, **Memory**, **Skills**, **Settings**, and fullscreen.
@@ -21,6 +22,7 @@ The workspace configurator lets you:
 
 - Choose a **Local** workspace or a **Remote (SSH)** connection — pick a saved preset (or **+ Add connection**) to run the workspace, its terminals, files, and Git on a remote host. See [Remote (SSH)](remote-ssh.md).
 - Select or create a project directory.
+- Create a **Git worktree workspace** from an existing local or remote repository. Pick the base repository, branch name, optional start point, and optional target path. If BLXCode finds that branch or path already checked out as a worktree, it opens the existing worktree instead of creating a duplicate.
 - Type `cd ...` style navigation commands for fast path movement.
 - Pick a terminal-grid preset.
 - Assign terminal slots to a fleet of coding tools.
@@ -40,6 +42,23 @@ The supported fleet labels are:
 - `cursor`
 
 The available session roles come from the built-in specialized harness skills (`src-tauri/src/agent/harness_skills/specialized/*.md`): `architect`, `branch-steward`, `codewright`, `coordinator`, `doc-updater`, `harness-optimizer`, `pr-test-analyzer`, `refactor-cleaner`, and `security-reviewer`. Leaving the dropdown on **Default agent** runs the agent without a role.
+
+## Git Worktree Workspaces
+
+A Git worktree workspace is a normal BLXCode workspace whose root is a Git worktree checkout. It has its own terminal grid, center tabs, agent timeline, `.agents` rules, skills, memory, plans, and tasks, while sharing Git object storage with the base repository.
+
+Use it when you want several branches open at once without cloning the repository again. Common examples are keeping `main` open while a feature branch runs tests, reviewing another branch in parallel, or letting a terminal agent work in a separate checkout.
+
+The **Worktree Management** menu in the titlebar is scoped to the active workspace:
+
+- **List / refresh** shows the worktrees attached to the active repository.
+- **Open** switches BLXCode to an existing worktree workspace, or creates a workspace entry for that path if it is not already open.
+- **Create** asks for branch, optional start point, and optional path. BLXCode checks existing worktrees first and opens a match instead of duplicating it.
+- **Remove** only removes clean worktrees. If Git reports uncommitted or untracked changes, BLXCode blocks removal so you can commit, stash, or clean up deliberately.
+
+Remote SSH workspaces use the same flow on the remote host. BLXCode runs the Git worktree commands through the active remote connection and starts remote terminals inside the selected worktree directory.
+
+The BLXCode Agent is worktree-aware. Its system prompt includes the active worktree root, branch, base repository, and local/remote scope, so file tools, shell tools, rules, skills, plans, memory, and terminal handoffs stay anchored to the selected worktree. You can ask the Agent to list or create worktree workspaces; for creation it previews the target, checks whether the branch/path already exists, and asks you to confirm before it creates or opens anything.
 
 <p align="center">
   <img src="../images/create-workspace-session-role-dropdown.png" alt="Create workspace step 1 with Local connection, recent directories, terminal layout presets, and the session role dropdown showing Default agent, Architect, Branch Steward, and Codewright" />
