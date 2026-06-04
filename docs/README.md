@@ -10,8 +10,8 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 
 | Topic | Guide |
 |-------|--------|
-| Settings (API Keys, **BLXCode Agent (text/image/voice, MCP, HeartBeat, Memory, Code Editor)**, Workspace, **Appearance / themes**, Help/About, App log) | [Settings](user/settings.md) · [Appearance & Themes](user/appearance-themes.md) |
-| Workbench, terminals, sidebar, Git diff/sync, handoff, **app status line**, **sidebar context drag-and-drop** | [Workspaces](user/workspaces.md) |
+| Settings (API Keys, **BLXCode Agent (text/image/voice, MCP, Plugins, HeartBeat, Memory, Code Editor)**, Workspace, **Appearance / themes**, Help/About, App log) | [Settings](user/settings.md) · [Appearance & Themes](user/appearance-themes.md) |
+| Workbench, terminals, titlebar **Run** menu, sidebar, Git diff/sync, handoff, **app status line**, **sidebar context drag-and-drop** | [Workspaces](user/workspaces.md) |
 | Remote workspaces over SSH (connections, terminals, file/git, resume) | [Remote (SSH)](user/remote-ssh.md) |
 | File preview (images, video, Markdown, Mermaid, **Vim mode**) | [File Preview](user/file-preview.md) |
 | Memory, learnings, architecture map, graph, **Memory Indexer (HeartBeat)**, **Memory settings pane** | [Memory And Tasks](user/memory-and-tasks.md) |
@@ -30,9 +30,9 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 ## User docs
 
 - [Getting Started](user/getting-started.md) — prerequisites, run BLXCode, first workspace, where data lives, **welcome-screen Create Workspace**, per-agent model/effort fleet.
-- [Settings](user/settings.md) — docked center-tab settings, **API Keys, BLXCode Agent (text/image/voice), MCP, HeartBeat, Memory, Code Editor (Vim)**, Workspace, **Appearance / themes**, Help/About, App log, Notifications.
+- [Settings](user/settings.md) — docked center-tab settings, **API Keys, BLXCode Agent (text/image/voice), MCP, Plugins, HeartBeat, Memory, Code Editor (Vim)**, Workspace, **Appearance / themes**, Help/About, App log, Notifications.
 - [Appearance & Themes](user/appearance-themes.md) — theme picker, presets, persistence, exceptions, **font size**.
-- [Workspaces](user/workspaces.md) — creation, terminal grids, sidebar explorer, File Diff (stage/commit/push), Git graph (fetch/pull), handoff, persistence, **app status line**, **sidebar context drag-and-drop (Files / Folders / Diffs / Commits)**, **hook install dialog**, **named terminals**.
+- [Workspaces](user/workspaces.md) — creation, terminal grids, titlebar **Run** menu, sidebar explorer, File Diff (stage/commit/push), Git graph (fetch/pull), handoff, persistence, **app status line**, **sidebar context drag-and-drop (Files / Folders / Diffs / Commits)**, **hook install dialog**, **named terminals**.
 - [Remote (SSH)](user/remote-ssh.md) — Settings → Remote connection presets (password / key / agent, encrypted secrets), creating remote workspaces, remote terminals + file/git + session resume (tmux vs keepalive).
 - [File Preview](user/file-preview.md) — center-tab previews for images (incl. SVG), video, rendered Markdown, syntax-highlighted source code, and Mermaid diagrams. **Vim mode** via `@replit/codemirror-vim`. Repository policy docs (`LICENSE`, `CONTRIBUTING`, `SECURITY`, `CHANGELOG`, …) render as Markdown with a kind-specific hero banner — with or without a `.md` extension.
 - [Memory And Tasks](user/memory-and-tasks.md) — Memory panel (Files, Graph, Search), architecture map, dynamic categories, tasks, agent memory tools, **Memory Indexer (HeartBeat)**, **Memory settings pane**.
@@ -51,10 +51,11 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 ## Developer docs
 
 - [Setup](developer/setup.md) — local environment and verification commands.
-- [Architecture](developer/architecture.md) — frontend/backend split, agent, memory, plans, handoff, diagrams, **HeartBeat**, **Memory Indexer**, **MCP**, **Kanban**, **Mermaid**, **Notifications**, **App log**, **App status line**, **sidebar context drag-and-drop**.
+- [Architecture](developer/architecture.md) — frontend/backend split, agent, memory, plans, handoff, diagrams, **HeartBeat**, **Memory Indexer**, **MCP**, **Plugins**, **Kanban**, **Mermaid**, **Notifications**, **App log**, **App status line**, **sidebar context drag-and-drop**.
 - [Agent Harness](developer/agent-harness.md) — core skills (incl. **MCP**, **prompt-generating**), tool dispatch, web settings, text-provider registry, **MCP module**, extension guide.
 - [Subagents](developer/subagents.md) — `subagents.run`, runner, protocol, tool groups, new roles.
 - [Tauri IPC](developer/tauri-ipc.md) — command registration, wrappers, command groups, **HeartBeat / Memory Indexer / MCP / Kanban / Mermaid / Notifications / App log** commands.
+- [Plugins](developer/plugins.md) — plugin package manifest, runtime detector schema, GitHub install source, Run menu execution flow.
 - [SSH Remote Transport](developer/ssh-remote.md) — wrapped-`ssh` terminals, persistent exec channel, fs/git remote routing, secrets, resume, teardown, russh follow-up.
 - [Voice Architecture](developer/voice.md) — STT/TTS modules and flows.
 - [Internationalization](developer/i18n.md) — locales, EULA content, translation workflow.

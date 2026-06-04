@@ -5,7 +5,7 @@
 //! Every git invocation sets `GIT_TERMINAL_PROMPT=0` so a missing credential
 //! fails fast instead of hanging the (poll-based) UI on an interactive prompt.
 
-use crate::git_info::{find_git_dir, git_cli_available};
+use crate::git_info::{git_cli_available, resolve_work_tree};
 use crate::git_remote::{remote_work_tree, run_git_remote_raw};
 use crate::git_status::GIT_MISSING_CODE;
 use crate::proc::command;
@@ -64,12 +64,7 @@ fn work_tree(cwd: &str) -> Result<PathBuf, String> {
     if trimmed.is_empty() {
         return Err("cwd is empty".into());
     }
-    let git_dir =
-        find_git_dir(Path::new(trimmed)).ok_or_else(|| "not a git repository".to_string())?;
-    git_dir
-        .parent()
-        .map(Path::to_path_buf)
-        .ok_or_else(|| "invalid git dir".to_string())
+    resolve_work_tree(Path::new(trimmed)).ok_or_else(|| "not a git repository".to_string())
 }
 
 fn run(work_tree: &Path, args: &[&str]) -> Result<Output, String> {

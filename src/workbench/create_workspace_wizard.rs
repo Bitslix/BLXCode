@@ -2,15 +2,15 @@ use crate::i18n::I18nKey;
 
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_session_roles_list, create_directory, default_cwd, is_tauri_shell, list_directory,
-    path_nav_invoke, ssh_remotes_list, workspace_presets_delete, workspace_presets_list,
-    workspace_presets_save, DirEntryBrief, PathNavResult, RemoteConnectionView, SessionRoleView,
-    WorkspacePresetView,
+    agent_session_roles_list, create_directory, default_cwd, git_worktree_create, is_tauri_shell,
+    list_directory, path_nav_invoke, ssh_remotes_list, workspace_presets_delete,
+    workspace_presets_list, workspace_presets_save, DirEntryBrief, PathNavResult,
+    RemoteConnectionView, SessionRoleView, WorkspacePresetView,
 };
 use crate::workbench::path_nav::path_nav_wasm_string;
 use crate::workbench::state::{
     CreateWorkspaceDraft, HarnessSettingsCategory, HarnessUiService, WorkbenchService,
-    WORKSPACE_FLEET_AGENT_SLUGS,
+    WorkspaceDraftKind, WORKSPACE_FLEET_AGENT_SLUGS,
 };
 use crate::workbench::terminal_agent_profiles::{terminal_agent_efforts, terminal_agent_models};
 use crate::workbench::SessionRolePicker;
@@ -47,6 +47,40 @@ fn parent_of(path: &str) -> Option<String> {
     p.parent().map(|x| x.to_string_lossy().into_owned())
 }
 
+fn default_worktree_path(base: &str, branch: &str) -> String {
+    let clean_branch = branch
+        .trim()
+        .replace(['/', '\\', ':', ' '], "-")
+        .trim_matches('-')
+        .to_string();
+    let clean_branch = if clean_branch.is_empty() {
+        "worktree".into()
+    } else {
+        clean_branch
+    };
+    let base = base.trim().trim_end_matches(['/', '\\']);
+    let parent = base
+        .rsplit_once(['/', '\\'])
+        .map(|(parent, _)| parent)
+        .filter(|parent| !parent.is_empty())
+        .unwrap_or(base);
+    format!("{parent}/{clean_branch}")
+}
+
+trait IntoNonEmptyString {
+    fn into_non_empty(self) -> Option<String>;
+}
+
+impl IntoNonEmptyString for String {
+    fn into_non_empty(self) -> Option<String> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self)
+        }
+    }
+}
+
 /// Inline workspace configuration view. Single-column, centered layout that
 /// matches the rest of the workbench chrome (no more modal-style sheet).
 #[component]
@@ -62,6 +96,7 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
         Memo::new(move |_| steps_sig.with(|m| m.get(&workspace_id).copied().unwrap_or(0)));
 
     let cwd_err = RwSignal::new(false);
+    let worktree_err = RwSignal::new(String::new());
     let browser_open = RwSignal::new(false);
     let dir_entries: RwSignal<Vec<DirEntryBrief>> = RwSignal::new(Vec::new());
     let dir_err: RwSignal<String> = RwSignal::new(String::new());
@@ -135,6 +170,67 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
 
     // True when the draft targets an SSH remote connection.
     let is_remote = move || draft_memo.get().remote_connection_id.is_some();
+
+    let launch_workspace = move |skip_agents: bool| {
+        let draft = draft_memo.get_untracked();
+        if draft.workspace_kind == WorkspaceDraftKind::Normal {
+            if skip_agents {
+                wb.workspace_skip_agents(workspace_id);
+            }
+            wb.commit_inline_configure(workspace_id);
+            return;
+        }
+
+        let base_cwd = draft.cwd_display.trim().to_string();
+        let branch = draft.worktree_branch.trim().to_string();
+        if base_cwd.is_empty() || branch.is_empty() {
+            worktree_err.set("Base repository and branch are required".into());
+            return;
+        }
+        let path = draft.worktree_path.trim().to_string();
+        let path = if path.is_empty() {
+            default_worktree_path(&base_cwd, &branch)
+        } else {
+            path
+        };
+        let start_point = draft
+            .worktree_start_point
+            .trim()
+            .to_string()
+            .into_non_empty();
+        let connection_id = draft.remote_connection_id.clone();
+        worktree_err.set(String::new());
+        spawn_local(async move {
+            match git_worktree_create(
+                base_cwd.clone(),
+                branch.clone(),
+                start_point,
+                path,
+                connection_id,
+            )
+            .await
+            {
+                Ok(outcome) => {
+                    wb.update_workspace_draft(workspace_id, |d| {
+                        d.workspace_kind = WorkspaceDraftKind::Worktree;
+                        d.worktree_base_cwd = outcome
+                            .entry
+                            .main_worktree_cwd
+                            .clone()
+                            .unwrap_or_else(|| base_cwd.clone());
+                        d.cwd_display = outcome.entry.path.clone();
+                        d.worktree_path = outcome.entry.path.clone();
+                        d.worktree_branch = outcome.entry.branch.unwrap_or(branch);
+                    });
+                    if skip_agents {
+                        wb.workspace_skip_agents(workspace_id);
+                    }
+                    wb.commit_inline_configure(workspace_id);
+                }
+                Err(err) => worktree_err.set(err),
+            }
+        });
+    };
 
     let wrap_id = format!("wz-cwd-wrap-{workspace_id}");
     let wrap_id_for_measure = wrap_id.clone();
@@ -387,6 +483,36 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
 
                     <div class="ws-config__group">
                         <label class="ws-config__label">
+                            <LxIcon icon=icondata::LuGitBranch width="0.8rem" height="0.8rem" />
+                            <span>"Workspace mode"</span>
+                        </label>
+                        <select
+                            class="ws-config__field"
+                            prop:value=move || {
+                                match draft_memo.get().workspace_kind {
+                                    WorkspaceDraftKind::Normal => "normal".to_string(),
+                                    WorkspaceDraftKind::Worktree => "worktree".to_string(),
+                                }
+                            }
+                            on:change=move |ev| {
+                                let value = select_value(&ev);
+                                worktree_err.set(String::new());
+                                wb.update_workspace_draft(workspace_id, |d| {
+                                    d.workspace_kind = if value == "worktree" {
+                                        WorkspaceDraftKind::Worktree
+                                    } else {
+                                        WorkspaceDraftKind::Normal
+                                    };
+                                });
+                            }
+                        >
+                            <option value="normal">"Normal workspace"</option>
+                            <option value="worktree">"Git worktree"</option>
+                        </select>
+                    </div>
+
+                    <div class="ws-config__group">
+                        <label class="ws-config__label">
                             <LxIcon icon=icondata::LuTag width="0.8rem" height="0.8rem" />
                             <span>{move || i18n.tr(I18nKey::WzNameLabel)()}</span>
                         </label>
@@ -406,7 +532,9 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                         <label class="ws-config__label">
                             <LxIcon icon=icondata::LuFolderOpen width="0.8rem" height="0.8rem" />
                             <span>{move || {
-                                if is_remote() {
+                                if draft_memo.get().workspace_kind == WorkspaceDraftKind::Worktree {
+                                    "Base repository".into()
+                                } else if is_remote() {
                                     i18n.tr(I18nKey::WsRemoteDir)()
                                 } else {
                                     i18n.tr(I18nKey::WzCwdLabel)()
@@ -638,6 +766,64 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                             <p class="ws-config__error">{move || i18n.tr(I18nKey::WzCwdEmpty)()}</p>
                         </Show>
                     </div>
+
+                    <Show when=move || draft_memo.get().workspace_kind == WorkspaceDraftKind::Worktree>
+                        <div class="ws-config__group">
+                            <label class="ws-config__label">
+                                <LxIcon icon=icondata::LuGitBranchPlus width="0.8rem" height="0.8rem" />
+                                <span>"Worktree branch"</span>
+                            </label>
+                            <input
+                                class="ws-config__field"
+                                type="text"
+                                prop:value=move || draft_memo.get().worktree_branch
+                                placeholder="feature/my-branch"
+                                on:input=move |ev| {
+                                    worktree_err.set(String::new());
+                                    let value = input_value(&ev);
+                                    wb.update_workspace_draft(workspace_id, |d| d.worktree_branch = value);
+                                }
+                            />
+                        </div>
+                        <div class="ws-config__group">
+                            <label class="ws-config__label">
+                                <LxIcon icon=icondata::LuGitCommitHorizontal width="0.8rem" height="0.8rem" />
+                                <span>"Start point"</span>
+                            </label>
+                            <input
+                                class="ws-config__field"
+                                type="text"
+                                prop:value=move || draft_memo.get().worktree_start_point
+                                placeholder="HEAD"
+                                on:input=move |ev| {
+                                    let value = input_value(&ev);
+                                    wb.update_workspace_draft(workspace_id, |d| d.worktree_start_point = value);
+                                }
+                            />
+                        </div>
+                        <div class="ws-config__group">
+                            <label class="ws-config__label">
+                                <LxIcon icon=icondata::LuFolderGit width="0.8rem" height="0.8rem" />
+                                <span>"Worktree path"</span>
+                            </label>
+                            <input
+                                class="ws-config__field"
+                                type="text"
+                                prop:value=move || draft_memo.get().worktree_path
+                                placeholder=move || {
+                                    let d = draft_memo.get();
+                                    default_worktree_path(&d.cwd_display, &d.worktree_branch)
+                                }
+                                on:input=move |ev| {
+                                    let value = input_value(&ev);
+                                    wb.update_workspace_draft(workspace_id, |d| d.worktree_path = value);
+                                }
+                            />
+                            <Show when=move || !worktree_err.get().is_empty()>
+                                <p class="ws-config__error">{move || worktree_err.get()}</p>
+                            </Show>
+                        </div>
+                    </Show>
 
                     <div class="ws-config__group">
                         <label class="ws-config__label">
@@ -918,8 +1104,7 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                             type="button"
                             class="ws-config__btn ws-config__btn--ghost"
                             on:click=move |_| {
-                                wb.workspace_skip_agents(workspace_id);
-                                wb.commit_inline_configure(workspace_id);
+                                launch_workspace(true);
                             }
                         >
                             {move || i18n.tr(I18nKey::WzSkipAgents)()}
@@ -927,9 +1112,14 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                         <button
                             type="button"
                             class="ws-config__btn ws-config__btn--primary"
-                            on:click=move |_| wb.commit_inline_configure(workspace_id)
+                            on:click=move |_| launch_workspace(false)
                             prop:disabled=move || {
                                 let d = draft_memo.get();
+                                if d.workspace_kind == WorkspaceDraftKind::Worktree {
+                                    if d.cwd_display.trim().is_empty() || d.worktree_branch.trim().is_empty() {
+                                        return true;
+                                    }
+                                }
                                 // Local needs a cwd; remote may omit it.
                                 if d.remote_connection_id.is_none() && d.cwd_display.trim().is_empty() {
                                     return true;
@@ -950,6 +1140,9 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                             on:click=move |_| {
                                 if wb.workspace_go_to_fleet_step(workspace_id).is_err() {
                                     cwd_err.set(true);
+                                    if draft_memo.get_untracked().workspace_kind == WorkspaceDraftKind::Worktree {
+                                        worktree_err.set("Base repository and branch are required".into());
+                                    }
                                 }
                             }
                         >

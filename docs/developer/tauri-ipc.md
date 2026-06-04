@@ -106,10 +106,12 @@ Center tab `0` shows one or more kanban boards; each board lives at `<workspace>
 
 ### Mermaid diagrams
 
-The agent can author Mermaid diagrams through two server tools (`mermaid_create`, `mermaid_create_many`) and the user can browse them from the **Diagram gallery** center tab (`CenterTabKind::DiagramGallery`):
+The agent can author Mermaid diagrams through two server tools (`mermaid_create`, `mermaid_create_many`) and the user can browse/edit them from the **Diagram gallery** center tab (`CenterTabKind::DiagramGallery`):
 
-- `mermaid_list_diagrams`, `mermaid_create_diagram`, `mermaid_delete_diagram`
+- `mermaid_list_diagrams`, `mermaid_create_diagram`, `mermaid_update_diagram`, `mermaid_delete_diagram`
 - `mermaid_export_markdown`, `mermaid_export_pdf` — Save As (uses `tauri-plugin-dialog` for the picker; PDF uses Chromium headless via the same channel as the workbench's `app_relaunch`)
+
+`mermaid_update_diagram(workspace_cwd, slug, id, code)` updates only the persisted `.mmd` source for an existing plan-linked diagram under `.agents/plans/<slug>/diagrams/<id>.mmd`; it validates the diagram id, errors for missing diagrams, and preserves the manifest metadata (`title`, `kind`, task link, created timestamp, provider/model).
 
 ### Skills and rules
 
@@ -124,6 +126,15 @@ The agent can author Mermaid diagrams through two server tools (`mermaid_create`
 - `mcp_set_server_enabled` — runtime on/off for a single server without removing it from the registry
 - `mcp_refresh_cli_configs` — re-scan the workspace CLI configs and update the union (preserves user edits through the `.blxcode/mcp-managed.json` sidecar)
 - `mcp_call_tool` — explicit `mcp.<server>.<tool>` invocation; the model loop usually calls inline, this is for the test harness and ad-hoc UI
+
+### Plugins
+
+- `plugins_list` — returns the plugin registry merged with built-in plugin packages.
+- `plugins_install_from_github` — installs a plugin package from a GitHub URL, optional Git ref, and optional package directory. The backend clones into staging, validates `blx-plugin.json`, copies the package into app data, and updates the registry.
+- `plugins_install_progress` — returns the current install phase for the Settings -> Plugins install dialog.
+- `plugins_set_enabled` — enables or disables a plugin without removing it from the registry.
+- `plugins_remove` — removes a GitHub-installed package and its app-data directory. Built-in packages are rejected.
+- `run_commands_discover` — scans the active local or SSH-remote workspace through enabled `runtime` plugins and returns grouped `RunCommand` records for the titlebar Run menu.
 
 ### HeartBeat
 

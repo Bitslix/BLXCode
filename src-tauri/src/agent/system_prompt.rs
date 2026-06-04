@@ -1,6 +1,7 @@
 //! Shared system prompt for **all** agent HTTP providers (OpenRouter, OpenAI
 //! via the same OpenAI-compatible client, and Anthropic). Single source of
 //! truth — edit here only.
+use crate::agent::protocol::WorkspaceScope;
 
 /// Pinned scope, security policy, tool catalog summary, and behaviour rules.
 /// Full JSON Schemas are attached per request in the `tools` field.
@@ -10,17 +11,61 @@
 /// The block ranks below Security and the Agent Chat mode (highest authority
 /// stays in this prompt) but shapes how the agent approaches the turn.
 #[must_use]
-pub fn system_prompt(
+pub fn system_prompt_with_scope(
     workspace_root: Option<&str>,
     agent_name: &str,
     session_role: Option<&str>,
+    workspace_scope: Option<&WorkspaceScope>,
 ) -> String {
     let root = workspace_root.unwrap_or("<no workspace>");
-    let base = base_system_prompt(root, agent_name);
+    let mut base = base_system_prompt(root, agent_name);
+    if let Some(scope) = workspace_scope.and_then(workspace_scope_block) {
+        base.push_str(&scope);
+    }
     match session_role.and_then(session_role_block) {
         Some(block) => format!("{base}\n{block}"),
         None => base,
     }
+}
+
+fn workspace_scope_block(scope: &WorkspaceScope) -> Option<String> {
+    let worktree = scope.worktree.as_ref()?;
+    let connection = scope
+        .connection_id
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| format!("remote SSH connection `{value}`"))
+        .unwrap_or_else(|| "local workspace".into());
+    let branch = worktree.branch.as_deref().unwrap_or("<detached>");
+    let head = worktree.head.as_deref().unwrap_or("<unknown>");
+    let git_common_dir = worktree.git_common_dir.as_deref().unwrap_or("<unknown>");
+    let main_worktree = worktree
+        .main_worktree_cwd
+        .as_deref()
+        .unwrap_or(worktree.base_cwd.as_str());
+    Some(format!(
+        "\n\
+         # Active Git worktree workspace\n\
+         This workspace is a Git worktree. Treat it as the active project root \
+         for this turn and keep all file, shell, git, rules, skills, memory, \
+         plans, and task operations inside this worktree unless the user \
+         explicitly asks for another path.\n\
+         - Connection: {connection}\n\
+         - Worktree path: {worktree_cwd}\n\
+         - Main/base worktree: {main_worktree}\n\
+         - Branch: {branch}\n\
+         - HEAD: {head}\n\
+         - Git common dir: {git_common_dir}\n\
+         If the user asks you to create another worktree, first inspect \
+         existing worktrees, then ask for confirmation of branch, start point, \
+         path, base workspace, and local/remote target before creating it.\n",
+        connection = connection,
+        worktree_cwd = worktree.worktree_cwd,
+        main_worktree = main_worktree,
+        branch = branch,
+        head = head,
+        git_common_dir = git_common_dir,
+    ))
 }
 
 /// Builds the `# Active session role` block for a role slug, or `None` when the
@@ -367,7 +412,8 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          **Skills (server):** `skills_list`, `skills_read`, `skills_write`, \
          `skills_set_enabled`, `skills_remove`, `skills_install`\n\
          \n\
-         **Harness (client):** `harness.create_workspace`, `harness.open_terminal`, \
+         **Harness (client):** `harness.create_workspace`, `harness.worktree_list`, \
+         `harness.create_worktree_workspace`, `harness.open_terminal`, \
          `harness.workspace_list`, `harness.workspace_switch`, `harness.workspace_prev`, \
          `harness.workspace_next`, `harness.view_show`, `harness.open_settings`, \
          `harness.open_memory`, `harness.open_plan`, `harness.open_file`, \
@@ -408,6 +454,10 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          `respectFocus:true` by default and suppresses noise when the Agent \
          panel is active. Read the `notifications` core skill when you need \
          exact fields, kinds, targets, or management tools.\n\
+         When notifying for Agent chat work, include target \
+         `{{ \"view\":\"agent\", \"workspaceId\": <id>, \"sessionId\": \"<id>\" }}` \
+         whenever those ids are available so the UI can select the right \
+         workspace and chat tab.\n\
          - Send `kind:\"plan_completed\"` when a durable plan is genuinely \
            complete.\n\
          - Send `kind:\"task_completed\"` when a meaningful task is completed.\n\
@@ -516,7 +566,15 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::system_prompt;
+    use super::system_prompt_with_scope;
+
+    fn system_prompt(
+        workspace_root: Option<&str>,
+        agent_name: &str,
+        session_role: Option<&str>,
+    ) -> String {
+        system_prompt_with_scope(workspace_root, agent_name, session_role, None)
+    }
 
     #[test]
     fn prompt_lists_plan_tools() {
@@ -664,5 +722,28 @@ mod tests {
             system_prompt(Some("/tmp/ws"), "BLXCody", Some("does-not-exist")),
             base
         );
+    }
+
+    #[test]
+    fn prompt_includes_worktree_scope_when_present() {
+        let scope = crate::agent::protocol::WorkspaceScope {
+            root: Some("/repo-feature".into()),
+            connection_id: Some("remote-1".into()),
+            worktree: Some(crate::agent::protocol::WorkspaceWorktreeMeta {
+                base_cwd: "/repo".into(),
+                worktree_cwd: "/repo-feature".into(),
+                branch: Some("feature/worktrees".into()),
+                head: Some("abc1234".into()),
+                git_common_dir: Some("/repo/.git".into()),
+                main_worktree_cwd: Some("/repo".into()),
+                created_by_blxcode: true,
+            }),
+        };
+        let prompt = system_prompt_with_scope(Some("/repo-feature"), "BLXCody", None, Some(&scope));
+
+        assert!(prompt.contains("# Active Git worktree workspace"));
+        assert!(prompt.contains("feature/worktrees"));
+        assert!(prompt.contains("remote SSH connection `remote-1`"));
+        assert!(prompt.contains("ask for confirmation"));
     }
 }

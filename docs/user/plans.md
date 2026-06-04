@@ -166,18 +166,40 @@ The BLXCode Agent can generate Mermaid diagrams as first-class objects via two n
 A new **centered diagram gallery** center tab (`CenterTabKind::DiagramGallery`) renders a plan's diagram set as:
 
 - A horizontal **thumbnail slider** on top.
-- The **active diagram large below**, rendered through the existing vendored Mermaid renderer (`mermaid_glue`, `securityLevel: strict`) via a new shared `DiagramRender` component.
+- The **active diagram large below**, rendered through the existing vendored Mermaid renderer (`mermaid_glue`, `securityLevel: strict`) via a shared interactive viewport.
+- Left-drag **pans** the canvas; a normal mouse wheel **zooms around the cursor**. The zoom buttons and reset control stay available in the lower-right corner.
+- The stats overlay shows the active diagram position, kind, generation time, and recorded provider/model when available.
 
 <p align="center">
   <img src="../images/mermaid-diagram-gallery.png" alt="Centered Mermaid diagram gallery with a Test-Flow flowchart, thumbnail rail, Export .md and Export .pdf buttons, zoom controls, and an inline diagram card in the Agent timeline" />
 </p>
 
-Each plan card in the right-side Plans panel gains a button that opens the gallery for that plan. Diagrams export to:
+Each plan card in the right-side Plans panel gains a button that opens the gallery for that plan.
+
+### Editing diagram source
+
+The gallery toolbar's **Edit** button opens a Mermaid source inspector; while it is open the button changes to **Close**. The inspector uses the same CodeMirror 6 editor as file preview, follows the active theme tokens, and lays out as:
+
+- A right-side split on wide panes.
+- A bottom drawer on narrow panes.
+
+On wide panes, drag the thin divider between the diagram and inspector to resize the source panel width. The divider uses the same grab-handle behavior as BLXCode's center split panels.
+
+Typing updates the rendered diagram after a short debounce. If the source is invalid, the render error remains visible while the edited source stays in the inspector.
+
+Persisted plan diagrams expose **Save** and **Revert changes** in the inspector:
+
+- **Save** writes the updated Mermaid source back to `.agents/plans/<slug>/diagrams/<id>.mmd`.
+- **Revert changes** restores the last saved source for the active diagram.
+
+Ad-hoc diagrams opened from the agent timeline are editable in-memory for preview/export, but they are not plan-backed and therefore do not show **Save**.
+
+Diagrams export to:
 
 - **`.md`** — YAML front-matter + a fenced `mermaid` block.
 - **`.pdf`** — the rendered SVG converted via `svg2pdf`, with page orientation derived from the SVG dimensions.
 
-Exports go through a native **Save As** dialog (the `tauri-plugin-dialog` dependency + `dialog:allow-save` capability). New Tauri commands: `mermaid_list_diagrams`, `mermaid_create_diagram`, `mermaid_delete_diagram`, `mermaid_export_markdown`, `mermaid_export_pdf`.
+Exports use the current edited source/rendered diagram, even before a persisted diagram is saved. They go through a native **Save As** dialog (the `tauri-plugin-dialog` dependency + `dialog:allow-save` capability). Mermaid Tauri commands: `mermaid_list_diagrams`, `mermaid_create_diagram`, `mermaid_update_diagram`, `mermaid_delete_diagram`, `mermaid_export_markdown`, `mermaid_export_pdf`.
 
 ## Plan-linked tasks
 

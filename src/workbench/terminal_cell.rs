@@ -1022,10 +1022,12 @@ async fn bootstrap_terminal_cell(
             ));
         }
         // Remote workspaces spawn `ssh` (preset + secrets resolved in Rust);
-        // local workspaces spawn the local shell. `cwd` is ignored remotely —
-        // the remote start directory comes from the connection preset.
+        // local workspaces spawn the local shell. Remote terminals receive the
+        // active workspace cwd so worktree workspaces start in their own tree.
         let spawn_result = match wb.remote_connection_for_terminal_key(&terminal_key) {
-            Some(connection_id) => pty_spawn_remote(connection_id, terminal_key.clone(), env).await,
+            Some(connection_id) => {
+                pty_spawn_remote(connection_id, terminal_key.clone(), Some(cwd.clone()), env).await
+            }
             None => pty_spawn_with_env(cwd.clone(), env).await,
         };
         match spawn_result {

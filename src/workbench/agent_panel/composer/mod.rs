@@ -11,7 +11,7 @@ use leptos::html;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use wasm_bindgen::JsCast;
 
 use crate::agent_wire::AgentChatMode;
@@ -19,11 +19,86 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_provider_models, agent_settings_get, agent_settings_save, is_tauri_shell,
-    AgentProviderSettingsView, ProviderModelEntry, ThinkingLevel,
+    AgentProviderKind, AgentProviderSettingsView, ProviderModelEntry, ThinkingLevel,
 };
 use crate::workbench::WorkbenchService;
 
 const MODEL_FAVORITES_STORAGE_KEY: &str = "blxcode.agent.model_favorites.v1";
+
+const COMPOSER_MODEL_PROVIDERS: [AgentProviderKind; 3] = [
+    AgentProviderKind::Openrouter,
+    AgentProviderKind::Openai,
+    AgentProviderKind::Anthropic,
+];
+
+fn provider_cache_key(provider: AgentProviderKind) -> String {
+    provider.as_str().to_string()
+}
+
+fn provider_display_name(provider: AgentProviderKind) -> &'static str {
+    match provider {
+        AgentProviderKind::Openrouter => "OpenRouter",
+        AgentProviderKind::Openai => "OpenAI",
+        AgentProviderKind::Anthropic => "Anthropic",
+        _ => "Provider",
+    }
+}
+
+fn provider_icon_url(provider: AgentProviderKind) -> &'static str {
+    match provider {
+        AgentProviderKind::Openrouter => "/public/brand-icons/openrouter.svg",
+        AgentProviderKind::Openai => "/public/brand-icons/openai.svg",
+        AgentProviderKind::Anthropic => "/public/brand-icons/anthropic.svg",
+        _ => "/public/brand-icons/provider.svg",
+    }
+}
+
+fn openrouter_owner_slug(model_id: &str) -> Option<String> {
+    model_id
+        .split_once('/')
+        .map(|(owner, _)| owner.trim().to_ascii_lowercase())
+        .filter(|owner| !owner.is_empty())
+}
+
+fn owner_logo_url(owner_slug: &str) -> Option<&'static str> {
+    match owner_slug {
+        "openai" => Some("/public/brand-icons/openai.svg"),
+        "anthropic" => Some("/public/brand-icons/anthropic.svg"),
+        "google" => Some("/public/brand-icons/google.svg"),
+        "mistral" => Some("/public/brand-icons/mistral.svg"),
+        "x-ai" | "xai" => Some("/public/brand-icons/grok.svg"),
+        "amazon" | "aws" => Some("/public/brand-icons/aws.svg"),
+        _ => None,
+    }
+}
+
+fn owner_initials(owner_slug: Option<&str>, model_id: &str) -> String {
+    let source = owner_slug
+        .filter(|owner| !owner.trim().is_empty())
+        .unwrap_or(model_id);
+    source
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter_map(|part| part.chars().next())
+        .take(2)
+        .collect::<String>()
+        .to_ascii_uppercase()
+}
+
+fn initial_provider_model_cache(
+    view: &AgentProviderSettingsView,
+) -> BTreeMap<String, Vec<ProviderModelEntry>> {
+    let mut cache = view.model_caches.clone();
+    cache
+        .entry(provider_cache_key(AgentProviderKind::Openrouter))
+        .or_insert_with(|| view.model_cache_openrouter.clone());
+    cache
+        .entry(provider_cache_key(AgentProviderKind::Openai))
+        .or_insert_with(|| view.model_cache_openai.clone());
+    cache
+        .entry(provider_cache_key(AgentProviderKind::Anthropic))
+        .or_insert_with(|| view.model_cache_anthropic.clone());
+    cache
+}
 
 fn thinking_levels() -> [ThinkingLevel; 5] {
     [
@@ -112,6 +187,35 @@ fn model_detail_line(model: &ProviderModelEntry) -> String {
     }
 }
 
+fn model_matches_filter(model: &ProviderModelEntry, filter: &str) -> bool {
+    filter.is_empty()
+        || model.id.to_lowercase().contains(filter)
+        || model.label.to_lowercase().contains(filter)
+}
+
+fn matching_provider_keys(
+    cache: &BTreeMap<String, Vec<ProviderModelEntry>>,
+    filter: &str,
+) -> Vec<String> {
+    COMPOSER_MODEL_PROVIDERS
+        .into_iter()
+        .filter_map(|provider| {
+            let key = provider_cache_key(provider);
+            if filter.is_empty()
+                || cache.get(&key).is_some_and(|models| {
+                    models
+                        .iter()
+                        .any(|model| model_matches_filter(model, filter))
+                })
+            {
+                Some(key)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 fn read_model_favorites() -> HashSet<String> {
     web_sys::window()
         .and_then(|w| w.local_storage().ok().flatten())
@@ -136,11 +240,12 @@ fn write_model_favorites(favorites: &HashSet<String>) {
 }
 
 fn model_row(
+    provider: AgentProviderKind,
     model: ProviderModelEntry,
     active: String,
     favorites: HashSet<String>,
     model_favorites: RwSignal<HashSet<String>>,
-    persist: impl Fn(Option<String>, Option<ThinkingLevel>) + Copy + 'static,
+    persist: impl Fn(AgentProviderKind, Option<String>, Option<ThinkingLevel>) + Copy + 'static,
     model_open: RwSignal<bool>,
 ) -> AnyView {
     let i18n = expect_context::<I18nService>();
@@ -158,6 +263,13 @@ fn model_row(
     let detail = model_detail_line(&model);
     let is_active = id == active;
     let is_favorite = favorites.contains(&id);
+    let owner_slug = if provider == AgentProviderKind::Openrouter {
+        openrouter_owner_slug(&id)
+    } else {
+        Some(provider_cache_key(provider))
+    };
+    let owner_logo = owner_slug.as_deref().and_then(owner_logo_url);
+    let owner_initials = owner_initials(owner_slug.as_deref(), &id);
 
     view! {
         <li>
@@ -170,10 +282,21 @@ fn model_row(
                     type="button"
                     class="agent-composer__model-main"
                     on:click=move |_| {
-                        persist(Some(select_id.clone()), None);
+                        persist(provider, Some(select_id.clone()), None);
                         model_open.set(false);
                     }
                 >
+                    <span class="agent-composer__model-logo" aria-hidden="true">
+                        {if let Some(url) = owner_logo {
+                            Either::Left(view! {
+                                <img class="agent-composer__model-logo-img" src=url alt="" />
+                            })
+                        } else {
+                            Either::Right(view! {
+                                <span class="agent-composer__model-logo-fallback">{owner_initials}</span>
+                            })
+                        }}
+                    </span>
                     <span class="agent-composer__model-copy">
                         <span class="agent-composer__model-name">{label}</span>
                         <span class="agent-composer__model-meta">{detail}</span>
@@ -240,9 +363,11 @@ pub fn Composer(
 
     let model_open = RwSignal::new(false);
     let think_open = RwSignal::new(false);
+    let open_provider_group = RwSignal::new(provider_cache_key(AgentProviderKind::Openrouter));
+    let provider_group_manually_changed = RwSignal::new(false);
 
-    let models = RwSignal::new(Vec::<ProviderModelEntry>::new());
-    let models_loading = RwSignal::new(false);
+    let provider_models = RwSignal::new(BTreeMap::<String, Vec<ProviderModelEntry>>::new());
+    let models_loading = RwSignal::new(HashSet::<String>::new());
     let model_filter = RwSignal::new(String::new());
     let model_favorites = RwSignal::new(read_model_favorites());
 
@@ -281,18 +406,31 @@ pub fn Composer(
         leptos::task::spawn_local(async move {
             if let Ok(view) = agent_settings_get().await {
                 thinking.set(view.thinking_level);
+                provider_group_manually_changed.set(false);
+                open_provider_group.set(provider_cache_key(view.provider));
+                provider_models.set(initial_provider_model_cache(&view));
                 settings.set(Some(view));
             }
         });
     }
 
     // Persist a model / thinking change, preserving every other setting.
-    let persist = move |new_model: Option<String>, new_think: Option<ThinkingLevel>| {
+    let persist = move |provider: AgentProviderKind,
+                        new_model: Option<String>,
+                        new_think: Option<ThinkingLevel>| {
         let Some(view) = settings.get_untracked() else {
             return;
         };
-        let provider = view.provider;
-        let model_id = new_model.clone().unwrap_or_else(|| view.model_id.clone());
+        let model_id = new_model.clone().unwrap_or_else(|| {
+            if provider == view.provider {
+                view.model_id.clone()
+            } else {
+                String::new()
+            }
+        });
+        if model_id.is_empty() {
+            return;
+        }
         let level = new_think.unwrap_or(view.thinking_level);
         leptos::task::spawn_local(async move {
             if let Ok(updated) = agent_settings_save(
@@ -316,26 +454,61 @@ pub fn Composer(
                     updated.model_id
                 ));
                 thinking.set(updated.thinking_level);
+                provider_group_manually_changed.set(false);
+                open_provider_group.set(provider_cache_key(updated.provider));
                 settings.set(Some(updated));
             }
         });
     };
 
-    // Lazy-load the provider's model list the first time the picker opens.
-    let load_models = move || {
-        if !is_tauri_shell() || models_loading.get_untracked() {
-            return;
-        }
-        let Some(provider) = settings.get_untracked().map(|v| v.provider) else {
+    Effect::new(move |_| {
+        let filter = model_filter.get().trim().to_ascii_lowercase();
+        let Some(active_provider) = settings.get().map(|view| view.provider) else {
             return;
         };
-        models_loading.set(true);
-        leptos::task::spawn_local(async move {
-            if let Ok(resp) = agent_provider_models(provider).await {
-                models.set(resp.entries);
+        if filter.is_empty() {
+            if !provider_group_manually_changed.get() {
+                open_provider_group.set(provider_cache_key(active_provider));
             }
-            models_loading.set(false);
-        });
+            return;
+        }
+        let cache = provider_models.get();
+        let matching = matching_provider_keys(&cache, &filter);
+        let current = open_provider_group.get();
+        if !matching.iter().any(|key| key == &current) {
+            if let Some(first) = matching.into_iter().next() {
+                open_provider_group.set(first);
+            }
+        }
+    });
+
+    // Lazy-load each provider's model list the first time the picker opens.
+    let load_models = move || {
+        if !is_tauri_shell() {
+            return;
+        }
+        for provider in COMPOSER_MODEL_PROVIDERS {
+            let key = provider_cache_key(provider);
+            let has_models = provider_models
+                .with_untracked(|cache| cache.get(&key).is_some_and(|entries| !entries.is_empty()));
+            let is_loading = models_loading.with_untracked(|loading| loading.contains(&key));
+            if has_models || is_loading {
+                continue;
+            }
+            models_loading.update(|loading| {
+                loading.insert(key.clone());
+            });
+            leptos::task::spawn_local(async move {
+                if let Ok(resp) = agent_provider_models(provider).await {
+                    provider_models.update(|cache| {
+                        cache.insert(provider_cache_key(resp.provider), resp.entries);
+                    });
+                }
+                models_loading.update(|loading| {
+                    loading.remove(&key);
+                });
+            });
+        }
     };
 
     let submit = move || {
@@ -419,53 +592,149 @@ pub fn Composer(
                                     }
                                 }
                             />
-                            <ul class="agent-composer__model-list">
+                            <div class="agent-composer__provider-groups">
                                 {move || {
                                     let filter = model_filter.get().to_lowercase();
-                                    let active = settings.get().map(|v| v.model_id).unwrap_or_default();
+                                    let filter_is_empty = filter.trim().is_empty();
+                                    let active_settings = settings.get();
+                                    let active = active_settings
+                                        .as_ref()
+                                        .map(|v| v.model_id.clone())
+                                        .unwrap_or_default();
+                                    let active_provider = active_settings
+                                        .as_ref()
+                                        .map(|v| v.provider)
+                                        .unwrap_or(AgentProviderKind::Openrouter);
+                                    let active_provider_key = provider_cache_key(active_provider);
                                     let favorites = model_favorites.get();
-                                    let matches_filter = |m: &ProviderModelEntry| {
-                                        filter.is_empty()
-                                            || m.id.to_lowercase().contains(&filter)
-                                            || m.label.to_lowercase().contains(&filter)
-                                    };
-                                    let mut active_row = None::<ProviderModelEntry>;
-                                    let mut rest = Vec::<ProviderModelEntry>::new();
-                                    for model in models.get().into_iter().filter(matches_filter) {
-                                        if model.id == active && active_row.is_none() {
-                                            active_row = Some(model);
-                                        } else {
-                                            rest.push(model);
-                                        }
-                                    }
-                                    rest.sort_by_key(|m| (!favorites.contains(&m.id), m.label.to_lowercase(), m.id.clone()));
-                                    let mut rows = Vec::new();
-                                    if let Some(model) = active_row {
-                                        rows.push(model_row(
-                                            model,
-                                            active.clone(),
-                                            favorites.clone(),
-                                            model_favorites,
-                                            persist,
-                                            model_open,
-                                        ));
-                                        if !rest.is_empty() {
-                                            rows.push(view! { <li class="agent-composer__model-separator" aria-hidden="true"></li> }.into_any());
-                                        }
-                                    }
-                                    rows.extend(rest.into_iter().map(|model| {
-                                        model_row(
-                                            model,
-                                            active.clone(),
-                                            favorites.clone(),
-                                            model_favorites,
-                                            persist,
-                                            model_open,
-                                        )
-                                    }));
-                                    rows.into_iter().collect_view()
+                                    let model_cache = provider_models.get();
+                                    let loading_providers = models_loading.get();
+                                    COMPOSER_MODEL_PROVIDERS
+                                        .into_iter()
+                                        .filter_map(|provider| {
+                                            let provider_key = provider_cache_key(provider);
+                                            let provider_label = provider_display_name(provider);
+                                            let provider_icon = provider_icon_url(provider);
+                                            let is_open = provider_key == open_provider_group.get();
+                                            let is_active_provider = provider_key == active_provider_key;
+                                            let is_loading = loading_providers.contains(&provider_key);
+                                            let models = model_cache
+                                                .get(&provider_key)
+                                                .cloned()
+                                                .unwrap_or_default();
+                                            let mut active_row = None::<ProviderModelEntry>;
+                                            let mut rest = Vec::<ProviderModelEntry>::new();
+                                            for model in models
+                                                .into_iter()
+                                                .filter(|model| model_matches_filter(model, &filter))
+                                            {
+                                                if is_active_provider && model.id == active && active_row.is_none() {
+                                                    active_row = Some(model);
+                                                } else {
+                                                    rest.push(model);
+                                                }
+                                            }
+                                            let match_count = active_row.iter().count() + rest.len();
+                                            if !filter_is_empty && match_count == 0 && !is_loading {
+                                                return None;
+                                            }
+                                            rest.sort_by_key(|m| (!favorites.contains(&m.id), m.label.to_lowercase(), m.id.clone()));
+                                            let click_provider_key = provider_key.clone();
+                                            let group_class = if is_open {
+                                                "agent-composer__provider-group agent-composer__provider-group--open"
+                                            } else {
+                                                "agent-composer__provider-group"
+                                            };
+                                            let count = if is_loading {
+                                                "...".to_string()
+                                            } else {
+                                                match_count.to_string()
+                                            };
+                                            let active_badge = if is_active_provider {
+                                                Either::Left(view! {
+                                                    <span class="agent-composer__provider-active">"Active"</span>
+                                                })
+                                            } else {
+                                                Either::Right(())
+                                            };
+                                            let panel = if is_open {
+                                                let content = if is_loading && match_count == 0 {
+                                                    Either::Left(view! {
+                                                        <div class="agent-composer__model-empty">"Loading models..."</div>
+                                                    })
+                                                } else if match_count == 0 {
+                                                    Either::Left(view! {
+                                                        <div class="agent-composer__model-empty">"No models"</div>
+                                                    })
+                                                } else {
+                                                    let mut rows = Vec::new();
+                                                    if let Some(model) = active_row {
+                                                        rows.push(model_row(
+                                                            provider,
+                                                            model,
+                                                            active.clone(),
+                                                            favorites.clone(),
+                                                            model_favorites,
+                                                            persist,
+                                                            model_open,
+                                                        ));
+                                                        if !rest.is_empty() {
+                                                            rows.push(view! { <li class="agent-composer__model-separator" aria-hidden="true"></li> }.into_any());
+                                                        }
+                                                    }
+                                                    rows.extend(rest.into_iter().map(|model| {
+                                                        model_row(
+                                                            provider,
+                                                            model,
+                                                            active.clone(),
+                                                            favorites.clone(),
+                                                            model_favorites,
+                                                            persist,
+                                                            model_open,
+                                                        )
+                                                    }));
+                                                    Either::Right(view! {
+                                                        <ul class="agent-composer__model-list">
+                                                            {rows.into_iter().collect_view()}
+                                                        </ul>
+                                                    })
+                                                };
+                                                Either::Left(view! {
+                                                    <div class="agent-composer__provider-panel">{content}</div>
+                                                })
+                                            } else {
+                                                Either::Right(())
+                                            };
+                                            view! {
+                                                <section class=group_class>
+                                                    <button
+                                                        type="button"
+                                                        class="agent-composer__provider-header"
+                                                        aria-expanded=is_open.to_string()
+                                                        on:click=move |_| {
+                                                            provider_group_manually_changed.set(true);
+                                                            open_provider_group.set(click_provider_key.clone());
+                                                        }
+                                                    >
+                                                        <span class="agent-composer__provider-logo" aria-hidden="true">
+                                                            <img class="agent-composer__provider-logo-img" src=provider_icon alt="" />
+                                                        </span>
+                                                        <span class="agent-composer__provider-headline">
+                                                            <span class="agent-composer__provider-name">{provider_label}</span>
+                                                            {active_badge}
+                                                        </span>
+                                                        <span class="agent-composer__provider-count">{count}</span>
+                                                        <LxIcon icon=icondata::LuChevronDown width="0.78rem" height="0.78rem" />
+                                                    </button>
+                                                    {panel}
+                                                </section>
+                                            }
+                                            .into_any()
+                                            .into()
+                                        })
+                                        .collect_view()
                                 }}
-                            </ul>
+                            </div>
                         </div>
                     </Show>
                 </div>
@@ -524,7 +793,11 @@ pub fn Composer(
                                         class="agent-composer__option"
                                         class:agent-composer__option--active=move || is_active.get()
                                         on:click=move |_| {
-                                            persist(None, Some(level));
+                                            let provider = settings
+                                                .get_untracked()
+                                                .map(|view| view.provider)
+                                                .unwrap_or(AgentProviderKind::Openrouter);
+                                            persist(provider, None, Some(level));
                                             think_open.set(false);
                                         }
                                     >
@@ -607,5 +880,94 @@ pub fn Composer(
                 </button>
             </div>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn model(id: &str, label: &str) -> ProviderModelEntry {
+        ProviderModelEntry {
+            id: id.to_string(),
+            label: label.to_string(),
+            description: None,
+            pricing: None,
+            context_length: None,
+        }
+    }
+
+    #[test]
+    fn openrouter_owner_slug_should_extract_prefix() {
+        assert_eq!(
+            openrouter_owner_slug("anthropic/claude-4-sonnet"),
+            Some("anthropic".to_string())
+        );
+        assert_eq!(openrouter_owner_slug("gpt-4.1"), None);
+    }
+
+    #[test]
+    fn owner_logo_url_should_map_common_owners() {
+        assert_eq!(
+            owner_logo_url("openai"),
+            Some("/public/brand-icons/openai.svg")
+        );
+        assert_eq!(owner_logo_url("x-ai"), Some("/public/brand-icons/grok.svg"));
+        assert_eq!(
+            owner_logo_url("amazon"),
+            Some("/public/brand-icons/aws.svg")
+        );
+        assert_eq!(owner_logo_url("unknown-lab"), None);
+    }
+
+    #[test]
+    fn owner_initials_should_fallback_from_owner_or_model() {
+        assert_eq!(
+            owner_initials(Some("unknown-lab"), "unknown-lab/model"),
+            "UL"
+        );
+        assert_eq!(owner_initials(None, "solo-model"), "SM");
+    }
+
+    #[test]
+    fn matching_provider_keys_should_hide_groups_without_search_hits() {
+        let mut cache = BTreeMap::new();
+        cache.insert(
+            provider_cache_key(AgentProviderKind::Openrouter),
+            vec![model("anthropic/claude-sonnet-4", "Claude Sonnet 4")],
+        );
+        cache.insert(
+            provider_cache_key(AgentProviderKind::Openai),
+            vec![model("gpt-4.1", "GPT-4.1")],
+        );
+        cache.insert(
+            provider_cache_key(AgentProviderKind::Anthropic),
+            vec![model("claude-opus-4", "Claude Opus 4")],
+        );
+
+        assert_eq!(
+            matching_provider_keys(&cache, "gpt"),
+            vec![provider_cache_key(AgentProviderKind::Openai)]
+        );
+        assert_eq!(
+            matching_provider_keys(&cache, "claude"),
+            vec![
+                provider_cache_key(AgentProviderKind::Openrouter),
+                provider_cache_key(AgentProviderKind::Anthropic),
+            ]
+        );
+    }
+
+    #[test]
+    fn matching_provider_keys_should_show_all_groups_without_filter() {
+        let cache = BTreeMap::new();
+        assert_eq!(
+            matching_provider_keys(&cache, ""),
+            vec![
+                provider_cache_key(AgentProviderKind::Openrouter),
+                provider_cache_key(AgentProviderKind::Openai),
+                provider_cache_key(AgentProviderKind::Anthropic),
+            ]
+        );
     }
 }

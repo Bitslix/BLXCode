@@ -8,6 +8,10 @@ categorie: git
 
 Prefer dedicated `git_*` and `workspace_git_*` tools over raw `git` in `shell_exec`.
 
+When the active workspace is a Git worktree, treat that worktree path as the
+repository root for all git reads and mutations. Do not jump to the main
+worktree or shared git common dir unless the user explicitly asks.
+
 ## Read tools
 
 ### `workspace_git_status`
@@ -57,5 +61,6 @@ Mutating operations (`git_add`, `git_commit`, `git_apply_patch`) require the `gi
 ## Patterns
 - Use `workspace_git_status` or `git_status` before reporting changes.
 - Use `git_diff`/`workspace_diff` before committing or reviewing edits.
+- In worktree workspaces, keep branch/status/diff/commit operations scoped to the active worktree.
 - Use `git_conflicts` whenever status shows unmerged paths or a merge/rebase/cherry-pick appears interrupted.
 - Use `shell_exec` for git only when no dedicated tool exists, and never for unsupported destructive operations unless the user explicitly asks and the active mode allows it.

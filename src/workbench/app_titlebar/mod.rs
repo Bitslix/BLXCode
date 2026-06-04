@@ -13,8 +13,10 @@ mod brand;
 pub(crate) mod help_menu;
 mod navigate_menu;
 mod notifications_menu;
+mod run_menu;
 mod view_mode_menu;
 mod window_controls;
+mod worktree_menu;
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
@@ -26,8 +28,10 @@ use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use navigate_menu::NavigateMenu;
 use notifications_menu::NotificationsMenu;
+use run_menu::RunMenu;
 use view_mode_menu::ViewModeMenu;
 use window_controls::WindowControls;
+use worktree_menu::WorktreeMenu;
 
 /// Shared, future-facing store backing the Notifications popover. Provided at
 /// the bar root so external producers can populate it without restructuring
@@ -112,6 +116,10 @@ pub fn AppTitleBar(#[prop(into)] workbench_active: Signal<bool>) -> impl IntoVie
                     </button>
                 </Show>
                 <TitleBarBrand />
+                <Show when=move || workbench_active.get()>
+                    <WorktreeMenu />
+                    <RunMenu />
+                </Show>
             </div>
 
             <div class="app-titlebar__cluster app-titlebar__cluster--center" data-tauri-drag-region="">

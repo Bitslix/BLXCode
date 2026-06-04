@@ -4,7 +4,7 @@
 
 use crate::agent::oneshot;
 use crate::agent_settings::{load_settings_pub, provider_key_pub};
-use crate::git_info::{find_git_dir, git_cli_available};
+use crate::git_info::{git_cli_available, resolve_work_tree as resolve_git_work_tree};
 use crate::git_remote::{remote_work_tree, run_git_remote};
 use crate::git_status::GIT_MISSING_CODE;
 use crate::proc::command;
@@ -89,12 +89,7 @@ fn resolve_work_tree(cwd: &str) -> Result<std::path::PathBuf, String> {
     if trimmed.is_empty() {
         return Err("cwd is empty".into());
     }
-    let git_dir =
-        find_git_dir(Path::new(trimmed)).ok_or_else(|| "not a git repository".to_string())?;
-    git_dir
-        .parent()
-        .map(Path::to_path_buf)
-        .ok_or_else(|| "invalid git dir".to_string())
+    resolve_git_work_tree(Path::new(trimmed)).ok_or_else(|| "not a git repository".to_string())
 }
 
 fn staged_diff(work_tree: &Path) -> Result<String, String> {

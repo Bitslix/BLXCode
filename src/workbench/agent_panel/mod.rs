@@ -16,15 +16,16 @@ pub(crate) mod turn_metrics_bar;
 mod voice_orb;
 
 use crate::agent_wire::{
-    AgentChatMode, AgentContextKind, AgentEvent, EventEnvelope, TaskSnapshot, TurnMetrics, UserTurn,
+    AgentChatMode, AgentContextKind, AgentEvent, EventEnvelope, TaskSnapshot, TurnMetrics,
+    UserTurn, WorkspaceScope, WorkspaceWorktreeMeta,
 };
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_abort, agent_active_context_window, agent_clear_conversation, agent_compact_conversation,
-    agent_drain_turn_opts, agent_enhance_prompt, agent_settings_get, agent_submit_turn,
-    git_is_repository, git_status_changes, is_tauri_shell, tasks_list as fetch_tasks_list,
-    workbench_upsert_agent_notification, AgentNotificationInput,
+    agent_drain_turn_opts, agent_enhance_prompt, agent_generate_chat_title, agent_settings_get,
+    agent_submit_turn, git_is_repository, git_status_changes, is_tauri_shell,
+    tasks_list as fetch_tasks_list, workbench_upsert_agent_notification, AgentNotificationInput,
 };
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
 use crate::workbench::agent_panel::composer::Composer;
@@ -45,7 +46,7 @@ use crate::workbench::agent_panel::timeline::{
 use crate::workbench::agent_panel::voice_orb::{handle_voice_event, VoiceOrb, VoiceOrbHandle};
 use crate::workbench::agent_timeline::{ChangedFileEntry, TimelineDoc, TurnPart};
 use crate::workbench::terminal_slot_dnd::TerminalSlotDragService;
-use crate::workbench::{RightPanelTab, WorkbenchService};
+use crate::workbench::{AgentChatSessionStatus, RightPanelTab, WorkbenchService};
 use gloo_timers::future::TimeoutFuture;
 use leptos::html;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
@@ -78,6 +79,28 @@ fn resolve_agent_timeline_name(raw: &str) -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+fn fallback_chat_session_title(prompt: &str) -> String {
+    let first_line = prompt
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .unwrap_or(prompt);
+    let words = first_line
+        .split_whitespace()
+        .take(7)
+        .collect::<Vec<_>>()
+        .join(" ");
+    let candidate = if words.is_empty() {
+        prompt.trim().to_string()
+    } else {
+        words
+    };
+    truncate_title(candidate.trim_matches(['.', ':', '-', ' ']).trim(), 44)
+}
+
+fn truncate_title(value: &str, max_chars: usize) -> String {
+    value.chars().take(max_chars).collect::<String>()
 }
 
 fn agent_panel_visible_and_focused(wb: WorkbenchService) -> bool {
@@ -167,6 +190,27 @@ fn refresh_agent_timeline_name(signal: RwSignal<String>) {
     });
 }
 
+fn agent_session_status_label(i18n: I18nService, status: AgentChatSessionStatus) -> String {
+    let key = match status {
+        AgentChatSessionStatus::Idle => I18nKey::AgSessionIdle,
+        AgentChatSessionStatus::Running => I18nKey::AgSessionRunning,
+        AgentChatSessionStatus::NeedsInput => I18nKey::AgSessionNeedsInput,
+        AgentChatSessionStatus::Error => I18nKey::AgSessionErrored,
+        AgentChatSessionStatus::Restored => I18nKey::AgSessionRestored,
+    };
+    i18n.tr(key)().to_string()
+}
+
+fn agent_session_status_class(status: AgentChatSessionStatus) -> &'static str {
+    match status {
+        AgentChatSessionStatus::Idle => "agent-chat-session-tab__status--idle",
+        AgentChatSessionStatus::Running => "agent-chat-session-tab__status--running",
+        AgentChatSessionStatus::NeedsInput => "agent-chat-session-tab__status--needs-input",
+        AgentChatSessionStatus::Error => "agent-chat-session-tab__status--error",
+        AgentChatSessionStatus::Restored => "agent-chat-session-tab__status--restored",
+    }
+}
+
 #[component]
 pub fn AgentPanelDock() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
@@ -177,6 +221,7 @@ pub fn AgentPanelDock() -> impl IntoView {
 
     let draft = RwSignal::new(String::new());
     let timeline = RwSignal::new(TimelineDoc::default());
+    let active_session_id = RwSignal::new(String::new());
     let busy = RwSignal::new(false);
     let status_line = RwSignal::new(Option::<String>::None);
     let tasks_open = RwSignal::new(false);
@@ -230,6 +275,7 @@ pub fn AgentPanelDock() -> impl IntoView {
         let active = wb.active_id().get();
         let Some(id) = active else {
             timeline.set(TimelineDoc::default());
+            active_session_id.set(String::new());
             thinking_open.set(HashMap::new());
             tool_detail_open.set(HashMap::new());
             draft.set(String::new());
@@ -238,6 +284,7 @@ pub fn AgentPanelDock() -> impl IntoView {
             enhance_prompt.set(false);
             return;
         };
+        active_session_id.set(wb.active_agent_chat_session_id_for_workspace(id));
         timeline.set(wb.agent_timeline_for_workspace_untracked(id));
         thinking_open.set(HashMap::new());
         tool_detail_open.set(HashMap::new());
@@ -417,6 +464,7 @@ pub fn AgentPanelDock() -> impl IntoView {
         let Some(ws_id) = wb.active_id().get_untracked() else {
             return;
         };
+        let session_id = wb.active_agent_chat_session_id_for_workspace(ws_id);
         let used = wb.chat_usage_for_workspace(ws_id).last_round_input_tokens;
         compacting.set(true);
         status_line.set(Some(i18n.tr(I18nKey::AgCompactRunning)().to_string()));
@@ -427,7 +475,7 @@ pub fn AgentPanelDock() -> impl IntoView {
         );
         leptos::task::spawn_local(async move {
             let current = (used > 0).then_some(used);
-            match agent_compact_conversation(current).await {
+            match agent_compact_conversation(Some(session_id.clone()), current).await {
                 Ok(result) => {
                     crate::app_log::info(
                         "agent",
@@ -443,8 +491,16 @@ pub fn AgentPanelDock() -> impl IntoView {
                     timeline.set(TimelineDoc::default());
                     thinking_open.set(HashMap::new());
                     tool_detail_open.set(HashMap::new());
-                    wb.set_workspace_agent_timeline(ws_id, TimelineDoc::default());
-                    wb.set_last_round_input_tokens(ws_id, result.after_tokens_estimate);
+                    wb.set_workspace_agent_session_timeline(
+                        ws_id,
+                        &session_id,
+                        TimelineDoc::default(),
+                    );
+                    wb.set_session_last_round_input_tokens(
+                        ws_id,
+                        &session_id,
+                        result.after_tokens_estimate,
+                    );
                     // Re-arming is handled by the auto-compact watcher once
                     // occupancy is observed below the threshold again — avoids
                     // a compaction storm if a summary is still large.
@@ -629,6 +685,40 @@ pub fn AgentPanelDock() -> impl IntoView {
                             <button
                                 type="button"
                                 class="agent-chat-head__icon-btn"
+                                aria-describedby="agent-chat-new-session-tooltip"
+                                aria-label=move || i18n.tr(I18nKey::AgNewSession)()
+                                on:click=move |_| {
+                                    let Some(ws_id) = wb.active_id().get_untracked() else {
+                                        return;
+                                    };
+                                    if let Some(session_id) = wb.create_agent_chat_session(ws_id) {
+                                        active_session_id.set(session_id);
+                                        timeline.set(wb.agent_timeline_for_workspace_untracked(ws_id));
+                                        thinking_open.set(HashMap::new());
+                                        tool_detail_open.set(HashMap::new());
+                                        draft.set(wb.agent_compose_draft_for_workspace_untracked(ws_id));
+                                        image_mode.set(wb.agent_image_mode_for_workspace_untracked(ws_id));
+                                        chat_mode.set(wb.agent_chat_mode_for_workspace_untracked(ws_id));
+                                        enhance_prompt.set(wb.agent_enhance_prompt_for_workspace_untracked(ws_id));
+                                        busy.set(false);
+                                        status_line.set(None);
+                                    }
+                                }
+                            >
+                                <LxIcon icon=icondata::LuPlus width="0.86rem" height="0.86rem" />
+                            </button>
+                            <span id="agent-chat-new-session-tooltip" class="blx-tooltip agent-chat-head__tooltip" role="tooltip">
+                                <span class="blx-tooltip__eyebrow">
+                                    <span class="blx-tooltip__spark" aria-hidden="true"></span>
+                                    {move || i18n.tr(I18nKey::AgChatHeading)()}
+                                </span>
+                                <span class="blx-tooltip__main">{move || i18n.tr(I18nKey::AgNewSession)()}</span>
+                            </span>
+                        </span>
+                        <span class="blx-tip-anchor blx-tip-anchor--left agent-chat-head__tip">
+                            <button
+                                type="button"
+                                class="agent-chat-head__icon-btn"
                                 prop:disabled=move || busy.get() || compacting.get() || !is_tauri_shell()
                                 aria-describedby="agent-chat-compact-tooltip"
                                 aria-label=move || i18n.tr(I18nKey::AgCompactSessionAria)()
@@ -764,15 +854,16 @@ pub fn AgentPanelDock() -> impl IntoView {
                                             ));
                                             return;
                                         };
-                                        match agent_clear_conversation().await {
+                                        let session_id = wb.active_agent_chat_session_id_for_workspace(ws_id);
+                                        match agent_clear_conversation(Some(session_id.clone())).await {
                                             Ok(()) => {
                                                 timeline.set(TimelineDoc::default());
                                                 thinking_open.set(HashMap::new());
                                                 tool_detail_open.set(HashMap::new());
                                                 draft.set(String::new());
-                                                wb.set_workspace_agent_timeline(ws_id, TimelineDoc::default());
+                                                wb.set_workspace_agent_session_timeline(ws_id, &session_id, TimelineDoc::default());
                                                 wb.set_workspace_agent_compose_draft(ws_id, String::new());
-                                                wb.clear_chat_usage(ws_id);
+                                                wb.clear_chat_usage_for_session(ws_id, &session_id);
                                                 wb.reset_workspace_agent_chat_mode(ws_id);
                                                 chat_mode.set(AgentChatMode::AskEdits);
                                                 status_line.set(None);
@@ -794,6 +885,93 @@ pub fn AgentPanelDock() -> impl IntoView {
                             </span>
                         </span>
                     </div>
+                </div>
+                <div class="agent-chat-session-tabs" role="tablist" aria-label=move || i18n.tr(I18nKey::AgSessionTabsAria)()>
+                    {move || {
+                        let Some(ws_id) = wb.active_id().get() else {
+                            return Vec::<AnyView>::new();
+                        };
+                        let sessions = wb.agent_chat_sessions_for_workspace(ws_id);
+                        let active_id = wb.active_agent_chat_session_id_for_workspace(ws_id);
+                        let total = sessions.len();
+                        sessions
+                            .into_iter()
+                            .map(|session| {
+                                let session_id = session.id.clone();
+                                let session_id_for_select = session_id.clone();
+                                let session_id_for_close = StoredValue::new(session_id.clone());
+                                let is_active = session.id == active_id;
+                                let can_close = total > 1
+                                    && !matches!(
+                                        session.status,
+                                        AgentChatSessionStatus::Running
+                                            | AgentChatSessionStatus::NeedsInput
+                                    );
+                                let status_label = agent_session_status_label(i18n, session.status);
+                                let status_class = agent_session_status_class(session.status);
+                                view! {
+                                    <div
+                                        role="tab"
+                                        tabindex="0"
+                                        class=move || {
+                                            if is_active {
+                                                "agent-chat-session-tab agent-chat-session-tab--active".to_string()
+                                            } else {
+                                                "agent-chat-session-tab".to_string()
+                                            }
+                                        }
+                                        aria-selected=if is_active { "true" } else { "false" }
+                                        on:click=move |_| {
+                                            if wb.select_agent_chat_session(ws_id, &session_id_for_select) {
+                                                active_session_id.set(session_id_for_select.clone());
+                                                timeline.set(wb.agent_timeline_for_workspace_untracked(ws_id));
+                                                thinking_open.set(HashMap::new());
+                                                tool_detail_open.set(HashMap::new());
+                                                draft.set(wb.agent_compose_draft_for_workspace_untracked(ws_id));
+                                                image_mode.set(wb.agent_image_mode_for_workspace_untracked(ws_id));
+                                                chat_mode.set(wb.agent_chat_mode_for_workspace_untracked(ws_id));
+                                                enhance_prompt.set(wb.agent_enhance_prompt_for_workspace_untracked(ws_id));
+                                                busy.set(matches!(
+                                                    wb.agent_chat_sessions_for_workspace(ws_id)
+                                                        .into_iter()
+                                                        .find(|s| s.id == session_id_for_select)
+                                                        .map(|s| s.status),
+                                                    Some(AgentChatSessionStatus::Running | AgentChatSessionStatus::NeedsInput)
+                                                ));
+                                                status_line.set(None);
+                                            }
+                                        }
+                                    >
+                                        <span class=format!("agent-chat-session-tab__status {status_class}") title=status_label.clone() aria-label=status_label></span>
+                                        <span class="agent-chat-session-tab__title">{session.title.clone()}</span>
+                                        <Show when=move || { session.unread_count > 0 }>
+                                            <span class="agent-chat-session-tab__unread" aria-label=move || i18n.tr(I18nKey::AgSessionUnread)()>
+                                                {session.unread_count}
+                                            </span>
+                                        </Show>
+                                        <Show when=move || can_close>
+                                            <button
+                                                type="button"
+                                                class="agent-chat-session-tab__close"
+                                                aria-label=move || i18n.tr(I18nKey::AgCloseSession)()
+                                                on:click=move |ev| {
+                                                    ev.stop_propagation();
+                                                    let sid = session_id_for_close.get_value();
+                                                    let _ = wb.close_agent_chat_session(ws_id, &sid);
+                                                    active_session_id.set(wb.active_agent_chat_session_id_for_workspace(ws_id));
+                                                    timeline.set(wb.agent_timeline_for_workspace_untracked(ws_id));
+                                                    draft.set(wb.agent_compose_draft_for_workspace_untracked(ws_id));
+                                                }
+                                            >
+                                                <LxIcon icon=icondata::LuX width="0.68rem" height="0.68rem" />
+                                            </button>
+                                        </Show>
+                                    </div>
+                                }
+                                .into_any()
+                            })
+                            .collect::<Vec<_>>()
+                    }}
                 </div>
                 <Show when=move || image_mode.get()>
                     <p class="agent-chat-head__image-hint">
@@ -873,7 +1051,11 @@ pub fn AgentPanelDock() -> impl IntoView {
                 on_cancel=Callback::new(move |()| {
                     crate::app_log::info("agent", "abort_requested", serde_json::json!({}));
                     leptos::task::spawn_local(async move {
-                        if let Err(error) = agent_abort().await {
+                        let session_id = wb
+                            .active_id()
+                            .get_untracked()
+                            .map(|ws_id| wb.active_agent_chat_session_id_for_workspace(ws_id));
+                        if let Err(error) = agent_abort(session_id).await {
                             crate::app_log::error(
                                 "agent",
                                 "abort_failed",
@@ -1113,6 +1295,43 @@ fn resolve_effective_workspace_root(wb: &WorkbenchService) -> Option<String> {
     (!t.is_empty()).then(|| t.to_owned())
 }
 
+fn resolve_workspace_scope(wb: &WorkbenchService, ws_id: u64) -> Option<WorkspaceScope> {
+    wb.workspaces().with_untracked(|list| {
+        let workspace = list.iter().find(|workspace| workspace.id == ws_id)?;
+        let root = workspace.cwd.trim().to_string().into_non_empty();
+        Some(WorkspaceScope {
+            root,
+            connection_id: workspace.remote_connection_id.clone(),
+            worktree: workspace
+                .worktree
+                .as_ref()
+                .map(|meta| WorkspaceWorktreeMeta {
+                    base_cwd: meta.base_cwd.clone(),
+                    worktree_cwd: meta.worktree_cwd.clone(),
+                    branch: meta.branch.clone(),
+                    head: meta.head.clone(),
+                    git_common_dir: meta.git_common_dir.clone(),
+                    main_worktree_cwd: meta.main_worktree_cwd.clone(),
+                    created_by_blxcode: meta.created_by_blxcode,
+                }),
+        })
+    })
+}
+
+trait IntoNonEmptyString {
+    fn into_non_empty(self) -> Option<String>;
+}
+
+impl IntoNonEmptyString for String {
+    fn into_non_empty(self) -> Option<String> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self)
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn submit_turn(
     wb: WorkbenchService,
@@ -1148,19 +1367,24 @@ fn submit_turn(
         ));
         return;
     };
+    let session_id = wb.active_agent_chat_session_id_for_workspace(ws_id);
 
     if is_reset_command(&prompt) {
         draft.set(String::new());
         wb.set_workspace_agent_compose_draft(ws_id, String::new());
         status_line.set(None);
         leptos::task::spawn_local(async move {
-            match agent_clear_conversation().await {
+            match agent_clear_conversation(Some(session_id.clone())).await {
                 Ok(()) => {
                     timeline.set(TimelineDoc::default());
                     thinking_open.set(HashMap::new());
                     tool_detail_open.set(HashMap::new());
-                    wb.set_workspace_agent_timeline(ws_id, TimelineDoc::default());
-                    wb.clear_chat_usage(ws_id);
+                    wb.set_workspace_agent_session_timeline(
+                        ws_id,
+                        &session_id,
+                        TimelineDoc::default(),
+                    );
+                    wb.clear_chat_usage_for_session(ws_id, &session_id);
                     wb.reset_workspace_agent_chat_mode(ws_id);
                     chat_mode.set(AgentChatMode::AskEdits);
                     status_line.set(None);
@@ -1221,6 +1445,7 @@ fn submit_turn(
     }
 
     let workspace_root = resolve_effective_workspace_root(&wb);
+    let workspace_scope = resolve_workspace_scope(&wb, ws_id);
     let context_items = wb.agent_context_for_workspace_untracked(ws_id);
     let transient_context_ids = transient_agent_context_ids(&context_items);
     let image_context_items = wb.pending_agent_images_for_workspace_untracked(ws_id);
@@ -1233,9 +1458,31 @@ fn submit_turn(
     timeline.update(|doc| {
         doc.push_user_turn_with_pending(prompt.clone(), Some(session_turn_started_at))
     });
-    wb.set_workspace_agent_timeline(ws_id, timeline.get_untracked());
+    wb.set_workspace_agent_session_timeline(ws_id, &session_id, timeline.get_untracked());
     if starts_new_chat_session {
-        wb.ensure_chat_session_started(ws_id, session_turn_started_at);
+        wb.ensure_chat_session_started_for_session(ws_id, &session_id, session_turn_started_at);
+        let fallback_title = fallback_chat_session_title(&prompt);
+        if !fallback_title.is_empty() {
+            wb.set_agent_chat_session_title_if_auto(
+                ws_id,
+                &session_id,
+                fallback_title.clone(),
+                None,
+            );
+            let wb_title = wb;
+            let session_id_title = session_id.clone();
+            let prompt_for_title = prompt.clone();
+            leptos::task::spawn_local(async move {
+                if let Ok(generated) = agent_generate_chat_title(prompt_for_title).await {
+                    wb_title.set_agent_chat_session_title_if_auto(
+                        ws_id,
+                        &session_id_title,
+                        generated.title,
+                        Some(&fallback_title),
+                    );
+                }
+            });
+        }
     }
 
     status_line.set(None);
@@ -1261,6 +1508,7 @@ fn submit_turn(
     let turn = UserTurn {
         prompt,
         workspace_root,
+        workspace_scope,
         chat_mode: chat_mode_value,
         session_role,
         voice_input,
@@ -1285,8 +1533,10 @@ fn submit_turn(
     let busy_sig = busy;
     let status_sig = status_line;
     let timeline_sig = timeline;
+    let session_timeline = RwSignal::new(timeline.get_untracked());
     let task_snapshot_sig = task_snapshot;
     let ws_capture = ws_id;
+    let session_capture = session_id.clone();
     let audio_ref = voice_handle.audio_ref;
     let turn_had_error = RwSignal::new(false);
     // Whether this turn ran a file-mutating tool — gates the turn-end
@@ -1296,13 +1546,23 @@ fn submit_turn(
     let changed_files_cwd = resolve_effective_workspace_root(&wb);
 
     leptos::task::spawn_local(async move {
-        if let Err(msg) = agent_submit_turn(turn).await {
+        wb.set_agent_chat_session_status(
+            ws_capture,
+            &session_capture,
+            AgentChatSessionStatus::Running,
+        );
+        if let Err(msg) = agent_submit_turn(Some(session_id.clone()), turn).await {
             crate::app_log::error(
                 "agent",
                 "turn_submit_failed",
                 serde_json::json!({ "error": msg.clone() }),
             );
             busy_sig.set(false);
+            wb.set_agent_chat_session_status(
+                ws_capture,
+                &session_capture,
+                AgentChatSessionStatus::Error,
+            );
             status_sig.set(Some(msg));
             return;
         }
@@ -1310,64 +1570,107 @@ fn submit_turn(
         let i18n_d = i18n;
         let wb_d = wb;
         let wb_after_drain = wb;
-        if let Err(msg) = agent_drain_turn_opts(voice_input, move |batch: Vec<EventEnvelope>| {
-            let loc_now = i18n_d.locale().get_untracked();
-            for env in &batch {
-                let ev = &env.event;
-                if let AgentEvent::Error { message } = ev {
-                    turn_had_error.set(true);
-                    spawn_agent_notification_fallback(
-                        wb_d,
-                        "error",
-                        i18n_d.tr(I18nKey::AgentPanelAgentError)(),
-                        Some(message.clone()),
-                        "agent:error",
-                        None,
-                    );
-                }
-                if let AgentEvent::ToolCall { tool, .. } = ev {
-                    if is_file_mutating_tool(tool) {
-                        turn_touched_files.set(true);
-                    }
-                }
-                if let AgentEvent::ToolCall { tool, args, .. } = ev {
-                    if tool == "harness.ask_user" {
-                        let question = args
-                            .as_ref()
-                            .and_then(|v| v.get("question"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_else(|| {
-                                i18n_d.tr(I18nKey::AgentPanelTheAgentNeedsYourInput)()
-                            })
-                            .to_string();
+        let session_for_drain = session_capture.clone();
+        if let Err(msg) = agent_drain_turn_opts(
+            Some(session_id.clone()),
+            voice_input,
+            move |batch: Vec<EventEnvelope>| {
+                let loc_now = i18n_d.locale().get_untracked();
+                let notification_target = serde_json::json!({
+                    "view": "agent",
+                    "workspaceId": ws_capture,
+                    "sessionId": session_for_drain.clone(),
+                });
+                for env in &batch {
+                    let ev = &env.event;
+                    if let AgentEvent::Error { message } = ev {
+                        turn_had_error.set(true);
+                        wb_d.set_agent_chat_session_status(
+                            ws_capture,
+                            &session_for_drain,
+                            AgentChatSessionStatus::Error,
+                        );
                         spawn_agent_notification_fallback(
                             wb_d,
-                            "question",
-                            i18n_d.tr(I18nKey::AgentPanelAgentNeedsInput)(),
-                            Some(question),
-                            "agent:question",
-                            Some(serde_json::json!({ "view": "agent" })),
+                            "error",
+                            i18n_d.tr(I18nKey::AgentPanelAgentError)(),
+                            Some(message.clone()),
+                            "agent:error",
+                            Some(notification_target.clone()),
                         );
                     }
+                    if matches!(ev, AgentEvent::Done)
+                        && wb_d.active_agent_chat_session_id_for_workspace(ws_capture)
+                            != session_for_drain
+                    {
+                        spawn_agent_notification_fallback(
+                            wb_d,
+                            "cli_agent_response",
+                            i18n_d.tr(I18nKey::AgAssistant)(),
+                            None,
+                            "agent:done",
+                            Some(notification_target.clone()),
+                        );
+                    }
+                    if let AgentEvent::ToolCall { tool, .. } = ev {
+                        if is_file_mutating_tool(tool) {
+                            turn_touched_files.set(true);
+                        }
+                    }
+                    if let AgentEvent::ToolCall { tool, args, .. } = ev {
+                        if tool == "harness.ask_user" {
+                            wb_d.set_agent_chat_session_status(
+                                ws_capture,
+                                &session_for_drain,
+                                AgentChatSessionStatus::NeedsInput,
+                            );
+                            let question = args
+                                .as_ref()
+                                .and_then(|v| v.get("question"))
+                                .and_then(|v| v.as_str())
+                                .unwrap_or_else(|| {
+                                    i18n_d.tr(I18nKey::AgentPanelTheAgentNeedsYourInput)()
+                                })
+                                .to_string();
+                            spawn_agent_notification_fallback(
+                                wb_d,
+                                "question",
+                                i18n_d.tr(I18nKey::AgentPanelAgentNeedsInput)(),
+                                Some(question),
+                                "agent:question",
+                                Some(notification_target.clone()),
+                            );
+                        }
+                    }
+                    if matches!(ev, AgentEvent::VoiceReady { .. }) {
+                        handle_voice_event(audio_ref, ev);
+                        continue;
+                    }
+                    if let AgentEvent::ImageContextConsumed { ids } = ev {
+                        wb_d.mark_workspace_agent_images_read(ws_capture, ids);
+                        continue;
+                    }
+                    apply_envelope(
+                        env,
+                        session_timeline,
+                        task_snapshot_sig,
+                        loc_now,
+                        Some((wb_d, ws_capture, Some(session_for_drain.clone()))),
+                    );
+                    wb_d.set_workspace_agent_session_timeline(
+                        ws_capture,
+                        &session_for_drain,
+                        session_timeline.get_untracked(),
+                    );
+                    if wb_d.active_agent_chat_session_id_for_workspace(ws_capture)
+                        == session_for_drain
+                    {
+                        timeline_sig.set(session_timeline.get_untracked());
+                    }
+                    maybe_handle_client_tool(ev, wb_d);
                 }
-                if matches!(ev, AgentEvent::VoiceReady { .. }) {
-                    handle_voice_event(audio_ref, ev);
-                    continue;
-                }
-                if let AgentEvent::ImageContextConsumed { ids } = ev {
-                    wb_d.mark_workspace_agent_images_read(ws_capture, ids);
-                    continue;
-                }
-                apply_envelope(
-                    env,
-                    timeline_sig,
-                    task_snapshot_sig,
-                    loc_now,
-                    Some((wb_d, ws_capture)),
-                );
-                maybe_handle_client_tool(ev, wb_d);
-            }
-        })
+            },
+        )
         .await
         {
             crate::app_log::error(
@@ -1388,6 +1691,13 @@ fn submit_turn(
             }),
         );
         busy_sig.set(false);
+        if !turn_had_error.get_untracked() {
+            wb_after_drain.set_agent_chat_session_status(
+                ws_capture,
+                &session_capture,
+                AgentChatSessionStatus::Idle,
+            );
+        }
 
         // Turn-end "Changed files" summary: only after a turn that ran a
         // file-mutating tool, in a Git repo. Snapshots the working tree once

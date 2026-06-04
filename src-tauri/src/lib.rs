@@ -15,6 +15,7 @@ mod git_info;
 mod git_remote;
 mod git_status;
 mod git_sync;
+mod git_worktree;
 mod heartbeat;
 mod image;
 mod kanban;
@@ -23,6 +24,7 @@ mod media_keys;
 mod memory;
 mod plans;
 mod plans_index;
+mod plugins;
 mod pointers;
 mod proc;
 mod pty_host;
@@ -39,7 +41,7 @@ mod workspace_presets;
 
 use agent::{
     agent_compact_conversation, agent_environment_invalidate, agent_web_settings_get,
-    agent_web_settings_save, AgentEngineState,
+    agent_web_settings_save, AgentEngineRegistry,
 };
 use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks};
 use agent_settings::{
@@ -56,6 +58,11 @@ use clipboard::{clipboard_read_text, clipboard_write_text};
 use commands::*;
 use image::{image_curated_models, image_settings_get, image_settings_save};
 use plans::PlanMigrationState;
+use plugins::commands::{
+    plugins_install_from_github, plugins_install_progress, plugins_list, plugins_remove,
+    plugins_set_enabled, run_commands_discover,
+};
+use plugins::install::PluginInstallState;
 use pty_host::PtyManager;
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
@@ -162,9 +169,10 @@ pub fn run() {
             heartbeat::ensure_scheduler_started(app.handle().clone());
             Ok(())
         })
-        .manage(AgentEngineState::new())
+        .manage(AgentEngineRegistry::new())
         .manage(BlxUpdaterState::default())
         .manage(PlanMigrationState::default())
+        .manage(PluginInstallState::default())
         .manage(BrowserHost::default())
         .manage(git_status::GitWatcherState::default())
         .manage(PtyManager::default())
@@ -225,6 +233,12 @@ pub fn run() {
             workspace_presets::workspace_presets_list,
             workspace_presets::workspace_presets_save,
             workspace_presets::workspace_presets_delete,
+            plugins_list,
+            plugins_install_from_github,
+            plugins_install_progress,
+            plugins_set_enabled,
+            plugins_remove,
+            run_commands_discover,
             agent_active_context_window,
             agent_provider_models,
             api_keys_status,
@@ -273,6 +287,10 @@ pub fn run() {
             git_sync::git_fetch,
             git_sync::git_pull,
             git_sync::git_push,
+            git_worktree::git_worktree_list,
+            git_worktree::git_worktree_open_info,
+            git_worktree::git_worktree_create,
+            git_worktree::git_worktree_remove,
             fs_entries::list_path_entries,
             fs_entries::list_workspace_files,
             fs_entries::create_workspace_file,
@@ -357,6 +375,7 @@ pub fn run() {
             agent::mermaid::commands::mermaid_list_diagrams,
             agent::mermaid::commands::mermaid_create_diagram,
             agent::mermaid::commands::mermaid_delete_diagram,
+            agent::mermaid::commands::mermaid_update_diagram,
             agent::mermaid::commands::mermaid_export_markdown,
             agent::mermaid::commands::mermaid_export_pdf,
             kanban::kanban_board_load,
@@ -368,6 +387,7 @@ pub fn run() {
             kanban::kanban_task_move,
             kanban::kanban_export_layout,
             kanban::kanban_import_layout,
+            agent::chat_title::agent_generate_chat_title,
             agent::plan_ai::plan_generate_ai,
             agent::prompt_enhance::agent_enhance_prompt,
             skills_rules::commands::rules_list,

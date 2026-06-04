@@ -28,6 +28,8 @@ Leptos UI
 - `src-tauri/src/commands.rs`: general app commands, agent command shims, browser commands, directory picker helpers, PTY command wrappers, and git helpers.
 - `src-tauri/src/workbench_state.rs`: persisted workbench snapshot/session storage.
 - `src-tauri/src/pty_host.rs`: terminal session lifecycle and PTY IO.
+- `src-tauri/src/git_worktree.rs`: local and remote Git worktree list/create/remove helpers used by workspace creation, the titlebar menu, and Agent client tools.
+- `src-tauri/src/plugins/`: BLXCode plugin package registry, built-in runtime plugins, GitHub install flow, and run-command detector execution for the titlebar Run menu.
 - `src-tauri/src/browser_host.rs`: native or iframe browser embedding support.
 - `src-tauri/src/voice/`: microphone recording, voice settings, STT, TTS, and voice catalog.
 
@@ -122,7 +124,16 @@ The kanban is a workspace-scoped multi-board plan/tasks surface:
 
 ## Mermaid
 
-`src-tauri/src/mermaid/` (or `mermaid.rs` in `plans.rs`) handles persistence of Mermaid diagrams under `<workspace>/.agents/plans/<slug>/diagrams/`, with a `diagrams.json` registry. The **Diagram gallery** center tab (`CenterTabKind::DiagramGallery`) lists diagrams; the agent creates them through `mermaid_create` / `mermaid_create_many` server tools; the user can Save As Markdown or PDF (`mermaid_export_markdown` / `mermaid_export_pdf`, both backed by `tauri-plugin-dialog`).
+`src-tauri/src/agent/mermaid/` handles persistence of plan-linked Mermaid diagrams under `<workspace>/.agents/plans/<slug>/diagrams/`, with a `diagrams.json` registry plus one `<id>.mmd` source file per diagram. The **Diagram gallery** center tab (`CenterTabKind::DiagramGallery`) lists diagrams; the agent creates them through `mermaid_create` / `mermaid_create_many` server tools; the user can edit existing plan-backed sources through `mermaid_update_diagram`, delete them, and Save As Markdown or PDF (`mermaid_export_markdown` / `mermaid_export_pdf`, both backed by `tauri-plugin-dialog`).
+
+`mermaid_update_diagram(workspace_cwd, slug, id, code) -> DiagramRecord` validates `id`, refuses traversal/missing diagrams, writes only `<id>.mmd`, and returns the preserved manifest metadata with the new source. It intentionally does not mutate `diagrams.json`, so title/kind/task/provenance remain stable across source edits.
+
+On the frontend, `src/workbench/diagram_render/` owns the reusable Mermaid rendering stack:
+
+- `DiagramRender` lazy-renders source through `file_preview::mermaid_glue`, caches rendered SVG by `(theme, code)`, and re-renders when `ThemeService::active_theme_id` changes.
+- `InteractiveDiagramViewport` wraps `DiagramRender` with left-drag panning, normal mouse-wheel cursor-centered zoom, toolbar zoom/reset controls, and a child slot for overlays such as gallery stats.
+- `MermaidPreviewWithInspector` combines the viewport with a CodeMirror-backed `MermaidSourceInspector`; source edits update a debounced render signal, so invalid source stays editable while render errors remain visible. On wide panes it renders a draggable split resizer, stores the inspector width in component state, clamps it against the viewport width, and falls back to a bottom drawer on narrow panes.
+- The Diagram gallery stores one in-memory draft per active diagram. Plan-backed drafts show Save/Revert and call `mermaid_update_diagram`; ad-hoc timeline diagrams can be edited/exported in-memory but are not persisted.
 
 ## App Status Line
 
@@ -142,6 +153,40 @@ The status line is read-only and never captures input; the Webview Tauri app use
 Workbench snapshots are serialized from frontend state and saved through backend commands. The snapshot version is defined by `WORKBENCH_SNAPSHOT_VERSION` in `src/workbench/state.rs`.
 
 The state model includes workspaces, active workspace ID, recent workspaces, sidebar/right-panel layout, browser tabs, agent timeline, and terminal pane layout.
+
+Workspace entries can also carry `WorkspaceWorktreeMeta` when the workspace root is a Git worktree. The frontend draft model exposes `workspace_kind`, `worktree_base_path`, `worktree_branch`, `worktree_start_point`, and `worktree_path`, so the same create-workspace wizard can create normal local/remote workspaces or Git worktree workspaces.
+
+## Git Worktree Workspaces
+
+Worktree support is split across the backend Git helpers, workspace state, titlebar UI, and Agent harness:
+
+- Backend commands in `src-tauri/src/git_worktree.rs` expose `git_worktree_list`, `git_worktree_open_info`, `git_worktree_create`, and `git_worktree_remove`.
+- Local commands run normal `git worktree` operations after resolving the repository root with `git rev-parse --show-toplevel`.
+- Remote commands use the active `RemoteExecManager` connection and execute the same Git checks on the remote host.
+- `git worktree list --porcelain -z` is parsed into structured entries so paths, branches, bare/detached state, lock state, and prunable annotations stay unambiguous.
+- Creation checks for an existing matching branch or target path before running `git worktree add`; an existing match is returned as an openable workspace outcome.
+- Removal checks `git status --porcelain=v1 -z` first and refuses to remove dirty worktrees.
+
+Frontend integration lives in `src/workbench/app_titlebar/worktree_menu.rs`, `src/workbench/create_workspace_wizard.rs`, and `src/tauri_bridge.rs`. The titlebar menu is rendered near the left brand cluster and is always scoped to the active workspace/repository. The create wizard uses the same command path for local and remote worktrees and stores the resulting metadata on the opened workspace.
+
+Agent integration carries worktree scope through `UserTurn.workspace_scope` and `WorkspaceScope.worktree`. Provider loops call `system_prompt_with_scope`, which appends an active-worktree block with the root, base repository, branch, and local/remote connection. Client tools `harness.worktree_list` and `harness.create_worktree_workspace` live in the frontend harness tool layer; creation has a preview phase (`confirmed: false`) and a confirmed phase (`confirmed: true`) so the model must ask the user before creating/opening a worktree.
+
+Remote terminal cells pass the workspace cwd to `pty_spawn_remote` as `remote_dir`, so terminals launched in a remote worktree start in that worktree instead of the remote account default directory.
+
+## Plugins And Runtime Commands
+
+BLXCode plugins are declarative package directories stored under the app data plugin folder. The backend registry lives in `src-tauri/src/plugins/`:
+
+- `types.rs` defines manifests, categories, install source metadata, command contributions, and `RunCommand` wire types.
+- `store.rs` loads/saves the registry and merges built-in packages into it.
+- `builtins.rs` ships the default `runtime` packages for Node/package managers, Rust, Go, C/C++ build tools, shell scripts, and direct JavaScript/TypeScript entry points.
+- `install.rs` clones GitHub package sources into a staging directory, validates `blx-plugin.json`, copies the package directory into app data, and records it as removable.
+- `run_detectors.rs` scans local workspace files or a remote-provided file/text snapshot and emits stable run command records.
+- `commands.rs` exposes plugin registry management and `run_commands_discover`.
+
+The first supported category is `runtime`. Runtime plugins contribute `runCommands` detector JSON files; BLXCode reads them but does not execute plugin code. Built-in plugins use the same detector path as installed packages, so Settings -> Plugins can enable/disable them consistently.
+
+Frontend integration is split between `src/workbench/plugins_settings_pane/` and `src/workbench/app_titlebar/run_menu.rs`. The settings pane manages package lifecycle. The titlebar Run menu discovers commands for the active workspace and, on selection, appends a plain terminal slot, waits for PTY registration through `WorkbenchService::pty_sessions_signal`, then sends the command via `pty_write`.
 
 ## Memory And Tasks
 
@@ -252,7 +297,8 @@ Frontend:
   - `code_context_menu.rs` renders the four-section right-click menu (`Snippet → Insert into terminal`, `Full context block → Insert into terminal`, `Snippet → Attach to agent`, `Clipboard`). Terminal sections list every workspace with at least one live PTY session — grouped by workspace, with the preview's own workspace pinned to the top and tagged with a localized **current** badge. The menu is purely view-layer: the parent owns `RwSignal<Option<CodeContextMenuState>>` and a `Callback<CodeMenuAction>` that runs the actual side effects (`pty_write`, `upsert_workspace_agent_context`, `navigator.clipboard.writeText`).
   - `codemirror_glue.rs` lazy-loads the vendored CodeMirror 6 bundle `public/vendor/codemirror/codemirror.min.js` (built from `scripts/codemirror-bundle/`), polls `globalThis.BlxCM` for up to 5 s, and exposes `mount(target, opts)` / `set_doc` / `set_editable` / `dispose`. Themed against the active BLXCode tokens (`--accent`, `--text`, `--text-muted`, `--surface`, `--border`) via `color-mix`, so switching themes re-tints the editor immediately. Same lazy-script pattern as `mermaid_glue.rs`.
   - `markdown_view.rs` runs `pulldown-cmark` (tables, strikethrough, task lists, footnotes, smart-punctuation), detects ```` ```mermaid ```` fences and replaces them with `<pre class="mermaid">` sentinels that the post-mount effect hands to `mermaid.run({ nodes })`. Accepts an optional `policy_kind: Option<PolicyKind>` prop; when set, a `policy_hero(kind)` lookup table chooses the icon (`LuScale` / `LuGitPullRequest` / `LuUsers` / `LuShieldCheck` / `LuLock` / `LuUserRound` / `LuHistory` / `LuBookOpen`), the `FilePreviewPolicy{Kind}{Title,Subtitle}` i18n keys, and a CSS modifier (`license` / `contributing` / `security` / …). The component renders a `<header class="file-preview__policy-hero file-preview__policy-hero--<modifier>">` above the markdown body; per-modifier `--policy-accent` overrides in `styles.css` retint the left bar and icon (e.g. `Security` → `var(--danger)`, `License` → `var(--success)`) while staying fully theme-aware.
-  - `mermaid_glue.rs` lazy-loads the vendored bundle `public/vendor/mermaid/mermaid.min.js`, calls `mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'dark' })`, and exposes `run_mermaid_on(&[HtmlElement])`.
+  - `mermaid_view.rs` routes `.mmd` / `.mermaid` files through the same `EditorSession` used by code/text/Markdown editing, then renders `MermaidPreviewWithInspector`. Save/Revert, protected-folder rules, too-large downgrades, Remote SSH routing, and conflict prompts all come from the shared editor session.
+  - `mermaid_glue.rs` lazy-loads the vendored bundle `public/vendor/mermaid/mermaid.min.js`, initializes Mermaid with `securityLevel: strict` and theme variables derived from the active BLXCode CSS tokens, and exposes both `run_mermaid_on(&[HtmlElement])` for Markdown fences and `render_mermaid_to_svg(id, code)` for reusable diagram components.
   - `util.rs` ships `format_bytes`, `format_mtime` (`js_sys::Date.to_locale_string`), `icon_for_kind`, `hljs_lang_for_ext` (extension → language alias map, retained to tag the language fence of snippets emitted by the right-click handoff menu), `html_escape`, `build_file_snippet_block(rel_path, language, plain_lines, range, source_workspace_for_header)` (fenced markdown emitter — clamps out-of-range indices, prefixes the header with the source workspace when crossing workspaces), allowlist-based `sanitize_svg` + `sanitize_markdown_html` (strips `<script>` / `<style>` / `<iframe>` / `<object>` / `<embed>` / `<foreignObject>` blocks, `on*=` event handlers, and `javascript:` / `vbscript:` URIs while preserving multi-byte UTF-8), plus a shared `FilePreviewError` enum (`NoTauri` / `WorkspaceNotFound` / `TooLarge(u64)` / `Failed(String)`) and `render_load_error(i18n, failed_label, error)` helper used by every renderer for consistent localized banners.
   - `editor/` hosts the writable surface used when you click **Edit** (or when a code/text file opens straight into edit mode): `code_mirror.rs` mounts the CodeMirror 6 editor against `codemirror_glue.rs`, `buffer.rs` holds the dirty buffer + content-hash conflict guard, `policy.rs` decides which files are read-only (binary, oversized, protected folder, policy doc until promoted), and `mod.rs` wires Save / Revert / View topbar actions. Highlight.js and the previous heuristic Rust fold model (`editor/folding.rs`) were removed when the preview switched to read-only CodeMirror — one engine drives both modes.
 

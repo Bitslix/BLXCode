@@ -119,6 +119,13 @@ The composer also has an **Enhance prompt** toggle. When enabled, BLXCode sends 
 
 The Agent can list and switch open workspaces, move to previous/next workspace, open right-panel views (Agent, Browser, Plans, Memory, Rules, Skills), open Settings categories, show sidebar sections, open file/diff tabs, and control the BLXCode main-window size/fullscreen state. These actions follow the active Agent Chat mode.
 
+The Agent can also manage Git worktree workspaces through client tools:
+
+- `harness.worktree_list` lists worktrees for the active workspace's repository, including branch, path, lock/prunable state, and whether BLXCode already has a workspace open for that path.
+- `harness.create_worktree_workspace` creates or opens a worktree workspace. The Agent must first call it with `confirmed: false`, report the exact base repository, branch, start point, target path, and local/remote scope, then ask you to confirm. Only after your confirmation may it call the same tool with `confirmed: true`.
+
+If the requested branch or path is already a worktree, BLXCode opens that existing checkout instead of creating another one. In worktree workspaces, the Agent prompt is pinned to the active worktree root, and workspace-local `.agents` rules, skills, plans, memory, and tasks are read from that checkout.
+
 For terminal CLI agents (`claude`, `codex`, `gemini`, `opencode`, `cursor`), the Agent uses PTY tools end to end: open/list terminals, send prompts or attached context, wait for new output with `harness.wait_terminal_output`, inspect tails with `harness.read_terminal_output`, and interrupt stuck sessions with `harness.terminal_interrupt`.
 
 ## See also

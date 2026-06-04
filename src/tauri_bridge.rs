@@ -64,28 +64,60 @@ pub async fn invoke_typed<T: DeserializeOwned>(
     serde_wasm_bindgen::from_value(v).map_err(|e| format!("deserialize {}: {}", cmd, e))
 }
 
-pub async fn agent_submit_turn(turn: UserTurn) -> Result<(), String> {
+pub async fn agent_submit_turn(session_id: Option<String>, turn: UserTurn) -> Result<(), String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
+        session_id: Option<String>,
         turn: UserTurn,
     }
-    invoke_unit_js("agent_submit_turn", args_value(Args { turn })?).await
+    invoke_unit_js("agent_submit_turn", args_value(Args { session_id, turn })?).await
 }
 
-pub async fn agent_poll_events(max: usize) -> Result<Vec<EventEnvelope>, String> {
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedChatTitle {
+    pub title: String,
+}
+
+pub async fn agent_generate_chat_title(prompt: String) -> Result<GeneratedChatTitle, String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        prompt: String,
+    }
+    invoke_typed("agent_generate_chat_title", Args { prompt }).await
+}
+
+pub async fn agent_poll_events(
+    session_id: Option<String>,
+    max: usize,
+) -> Result<Vec<EventEnvelope>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct MaxArgs {
+        session_id: Option<String>,
         max: usize,
     }
-    invoke_typed("agent_poll_events", MaxArgs { max }).await
+    invoke_typed("agent_poll_events", MaxArgs { session_id, max }).await
 }
 
-pub async fn agent_abort() -> Result<(), String> {
-    invoke_unit_js("agent_abort", JsValue::UNDEFINED).await
+pub async fn agent_abort(session_id: Option<String>) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        session_id: Option<String>,
+    }
+    invoke_unit_js("agent_abort", args_value(Args { session_id })?).await
 }
 
-pub async fn agent_clear_conversation() -> Result<(), String> {
-    invoke_unit_js("agent_clear_conversation", JsValue::UNDEFINED).await
+pub async fn agent_clear_conversation(session_id: Option<String>) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        session_id: Option<String>,
+    }
+    invoke_unit_js("agent_clear_conversation", args_value(Args { session_id })?).await
 }
 
 // ---------------------------------------------------------------------------
@@ -384,6 +416,16 @@ pub async fn agent_submit_tool_result(
     message: Option<String>,
     data: Option<serde_json::Value>,
 ) -> Result<(), String> {
+    agent_submit_tool_result_for_session(None, call_id, ok, message, data).await
+}
+
+pub async fn agent_submit_tool_result_for_session(
+    session_id: Option<String>,
+    call_id: String,
+    ok: bool,
+    message: Option<String>,
+    data: Option<serde_json::Value>,
+) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Payload {
@@ -395,12 +437,15 @@ pub async fn agent_submit_tool_result(
         data: Option<serde_json::Value>,
     }
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
+        session_id: Option<String>,
         payload: Payload,
     }
     invoke_unit_js(
         "agent_submit_tool_result",
         args_value(Args {
+            session_id,
             payload: Payload {
                 call_id,
                 ok,
@@ -860,14 +905,23 @@ pub struct CompactionResult {
 /// Summarize the running conversation and replace it with a compact briefing.
 /// `current_tokens` is the meter's live occupancy (for an accurate before/after).
 pub async fn agent_compact_conversation(
+    session_id: Option<String>,
     current_tokens: Option<u64>,
 ) -> Result<CompactionResult, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Args {
+        session_id: Option<String>,
         current_tokens: Option<u64>,
     }
-    invoke_typed("agent_compact_conversation", Args { current_tokens }).await
+    invoke_typed(
+        "agent_compact_conversation",
+        Args {
+            session_id,
+            current_tokens,
+        },
+    )
+    .await
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1831,6 +1885,8 @@ pub async fn ssh_remote_list_dirs(
 struct PtySpawnRemoteArgs {
     connection_id: String,
     terminal_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remote_dir: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     env: Vec<(String, String)>,
 }
@@ -1850,6 +1906,7 @@ pub async fn remote_exec_close(connection_id: String) -> Result<(), String> {
 pub async fn pty_spawn_remote(
     connection_id: String,
     terminal_key: String,
+    remote_dir: Option<String>,
     env: Vec<(String, String)>,
 ) -> Result<u64, String> {
     invoke_typed(
@@ -1857,6 +1914,7 @@ pub async fn pty_spawn_remote(
         PtySpawnRemoteArgs {
             connection_id,
             terminal_key,
+            remote_dir,
             env,
         },
     )
@@ -3125,6 +3183,32 @@ pub async fn mermaid_delete_diagram(ws: &str, slug: &str, id: &str) -> Result<()
     .await
 }
 
+pub async fn mermaid_update_diagram(
+    ws: &str,
+    slug: &str,
+    id: &str,
+    code: &str,
+) -> Result<DiagramRecord, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args<'a> {
+        workspace_cwd: &'a str,
+        slug: &'a str,
+        id: &'a str,
+        code: &'a str,
+    }
+    invoke_typed(
+        "mermaid_update_diagram",
+        Args {
+            workspace_cwd: ws,
+            slug,
+            id,
+            code,
+        },
+    )
+    .await
+}
+
 /// Export a diagram as Markdown via a native Save dialog. `Ok(None)` on cancel.
 pub async fn mermaid_export_markdown(
     title: &str,
@@ -3714,6 +3798,215 @@ pub async fn skills_install(
 
 // ---------------------------------------------------------------------
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PluginCapability {
+    RunCommands,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PluginInstallKind {
+    BuiltIn,
+    GitHub,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginCommandContribution {
+    pub capability: PluginCapability,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginManifest {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub version: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub author: Option<String>,
+    #[serde(default)]
+    pub category: String,
+    #[serde(default)]
+    pub capabilities: Vec<PluginCapability>,
+    #[serde(default)]
+    pub commands: Vec<PluginCommandContribution>,
+    #[serde(default)]
+    pub metadata: std::collections::BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallSource {
+    pub kind: PluginInstallKind,
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub git_ref: Option<String>,
+    #[serde(default)]
+    pub package_dir: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginRegistryEntry {
+    pub manifest: PluginManifest,
+    #[serde(default)]
+    pub enabled: bool,
+    pub source: PluginInstallSource,
+    #[serde(default)]
+    pub installed_at: String,
+    #[serde(default)]
+    pub updated_at: String,
+    #[serde(default)]
+    pub path: Option<String>,
+}
+
+impl PluginRegistryEntry {
+    pub fn removable(&self) -> bool {
+        self.source.kind != PluginInstallKind::BuiltIn
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginRegistry {
+    #[serde(default)]
+    pub version: u32,
+    #[serde(default)]
+    pub plugins: Vec<PluginRegistryEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallRequest {
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_ref: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub package_dir: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallProgress {
+    pub busy: bool,
+    pub phase: String,
+    pub message: String,
+    pub downloaded_bytes: u64,
+    pub total_bytes: Option<u64>,
+    pub error: Option<String>,
+    pub plugin_id: Option<String>,
+    pub updated_at_ms: u128,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RunCommandKind {
+    Dev,
+    Run,
+    Debug,
+    Test,
+    Build,
+    Other,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunCommandSource {
+    pub plugin_id: String,
+    pub detector_id: String,
+    #[serde(default)]
+    pub manifest_path: Option<String>,
+    #[serde(default)]
+    pub package_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunCommand {
+    pub id: String,
+    pub label: String,
+    pub command: String,
+    #[serde(default)]
+    pub cwd_rel: String,
+    pub kind: RunCommandKind,
+    pub source: RunCommandSource,
+}
+
+pub async fn plugins_list() -> Result<PluginRegistry, String> {
+    invoke_typed("plugins_list", serde_json::json!({})).await
+}
+
+pub async fn plugins_install_from_github(
+    request: PluginInstallRequest,
+) -> Result<PluginRegistry, String> {
+    #[derive(Serialize)]
+    struct Args {
+        request: PluginInstallRequest,
+    }
+    invoke_typed("plugins_install_from_github", Args { request }).await
+}
+
+pub async fn plugins_install_progress() -> Result<PluginInstallProgress, String> {
+    invoke_typed("plugins_install_progress", serde_json::json!({})).await
+}
+
+pub async fn plugins_set_enabled(
+    plugin_id: String,
+    enabled: bool,
+) -> Result<PluginRegistry, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        plugin_id: String,
+        enabled: bool,
+    }
+    invoke_typed("plugins_set_enabled", Args { plugin_id, enabled }).await
+}
+
+pub async fn plugins_remove(plugin_id: String) -> Result<PluginRegistry, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        plugin_id: String,
+    }
+    invoke_typed("plugins_remove", Args { plugin_id }).await
+}
+
+pub async fn run_commands_discover(
+    workspace_root: String,
+    connection_id: Option<String>,
+) -> Result<Vec<RunCommand>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Request {
+        workspace_root: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    #[derive(Serialize)]
+    struct Args {
+        request: Request,
+    }
+    invoke_typed(
+        "run_commands_discover",
+        Args {
+            request: Request {
+                workspace_root,
+                connection_id,
+            },
+        },
+    )
+    .await
+}
+
+// ---------------------------------------------------------------------
+
 pub async fn git_branch(
     cwd: String,
     connection_id: Option<String>,
@@ -3866,6 +4159,121 @@ pub async fn git_commit_details(
         Args {
             cwd,
             oid,
+            connection_id,
+        },
+    )
+    .await
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitWorktreeEntry {
+    pub path: String,
+    pub branch: Option<String>,
+    pub head: Option<String>,
+    pub detached: bool,
+    pub bare: bool,
+    pub locked: bool,
+    pub locked_reason: Option<String>,
+    pub prunable: bool,
+    pub prunable_reason: Option<String>,
+    pub is_main: bool,
+    pub git_common_dir: Option<String>,
+    pub main_worktree_cwd: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitWorktreeCreateOutcome {
+    pub entry: GitWorktreeEntry,
+    pub created: bool,
+    pub matched_existing: bool,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitWorktreeRemoveOutcome {
+    pub path: String,
+    pub removed: bool,
+}
+
+pub async fn git_worktree_list(
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<Vec<GitWorktreeEntry>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    invoke_typed("git_worktree_list", Args { cwd, connection_id }).await
+}
+
+pub async fn git_worktree_open_info(
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<GitWorktreeEntry, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    invoke_typed("git_worktree_open_info", Args { cwd, connection_id }).await
+}
+
+pub async fn git_worktree_create(
+    base_cwd: String,
+    branch: String,
+    start_point: Option<String>,
+    path: String,
+    connection_id: Option<String>,
+) -> Result<GitWorktreeCreateOutcome, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        base_cwd: String,
+        branch: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        start_point: Option<String>,
+        path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    invoke_typed(
+        "git_worktree_create",
+        Args {
+            base_cwd,
+            branch,
+            start_point,
+            path,
+            connection_id,
+        },
+    )
+    .await
+}
+
+pub async fn git_worktree_remove(
+    base_cwd: String,
+    path: String,
+    connection_id: Option<String>,
+) -> Result<GitWorktreeRemoveOutcome, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        base_cwd: String,
+        path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    invoke_typed(
+        "git_worktree_remove",
+        Args {
+            base_cwd,
+            path,
             connection_id,
         },
     )
@@ -4240,7 +4648,7 @@ pub async fn pty_kill(session_id: u64) -> Result<(), String> {
 /// Draint Events bis `Done`/`Error`; bei leeren Batches kurz warten (Streaming).
 #[allow(dead_code)]
 pub async fn agent_drain_turn(on_batch: impl Fn(Vec<EventEnvelope>)) -> Result<(), String> {
-    agent_drain_turn_opts(false, on_batch).await
+    agent_drain_turn_opts(None, false, on_batch).await
 }
 
 /// Variante mit `expect_voice`: drain läuft nach `Done` weiter, bis ein
@@ -4248,6 +4656,7 @@ pub async fn agent_drain_turn(on_batch: impl Fn(Vec<EventEnvelope>)) -> Result<(
 /// Damit holen wir den TTS-Output, der vom Orchestrator nach dem
 /// regulären `Done` gepusht wird.
 pub async fn agent_drain_turn_opts(
+    session_id: Option<String>,
     expect_voice: bool,
     on_batch: impl Fn(Vec<EventEnvelope>),
 ) -> Result<(), String> {
@@ -4255,7 +4664,7 @@ pub async fn agent_drain_turn_opts(
     let mut idle_after_done: u32 = 0;
     const VOICE_TAIL_IDLE_MAX: u32 = 600; // 600 * 50ms ≈ 30s
     loop {
-        let batch = agent_poll_events(64).await?;
+        let batch = agent_poll_events(session_id.clone(), 64).await?;
         if batch.is_empty() {
             if seen_done && expect_voice {
                 idle_after_done += 1;

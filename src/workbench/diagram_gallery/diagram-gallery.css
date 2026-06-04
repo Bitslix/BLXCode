@@ -111,20 +111,7 @@
   min-height: 0;
   display: flex;
   position: relative;
-  overflow: auto;
-}
-
-.diagram-gallery__zoomable {
-  flex: 1;
-  display: flex;
-  min-width: min-content;
-  min-height: min-content;
-  transform-origin: center top;
-  transition: transform 0.08s ease-out;
-}
-
-.diagram-gallery__active .diagram-render {
-  flex: 1;
+  overflow: hidden;
 }
 
 /* Stats overlay — bottom-left */
@@ -158,47 +145,4 @@
 .diagram-gallery__stat-val {
   color: var(--text);
   font-weight: 600;
-}
-
-/* Zoom / center controls — bottom-right */
-.diagram-gallery__zoom {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--bg-panel) 86%, transparent);
-  backdrop-filter: blur(6px);
-  z-index: 2;
-}
-
-.diagram-gallery__zoom-btn {
-  min-width: 26px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-raised);
-  color: var(--text);
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-}
-
-.diagram-gallery__zoom-btn:hover {
-  background: var(--bg-hover);
-}
-
-.diagram-gallery__zoom-level {
-  min-width: 40px;
-  text-align: center;
-  font-size: 11px;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
 }

@@ -4,6 +4,7 @@ pub mod tools;
 
 mod anthropic;
 pub(crate) mod badwords;
+pub mod chat_title;
 pub(crate) mod compaction;
 pub(crate) mod context_window;
 mod environment;
@@ -39,4 +40,4 @@ pub use web_commands::{
 
 pub use protocol::{EventEnvelope, UserTurn};
 pub use session_orchestrator::dispatch_user_turn;
-pub use state::AgentEngineState;
+pub use state::AgentEngineRegistry;
