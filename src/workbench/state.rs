@@ -753,6 +753,22 @@ fn ensure_workspace_pinned_tabs(workspace: &mut WorkspaceEntry) {
     {
         workspace.center_tabs.insert(0, CenterTab::kanban());
     }
+    // Collapse every view-mode tab into a single canonical one. The terminal
+    // grid / Canvas / Swarm views are *one* mutable tab; older or corrupted
+    // snapshots could carry more than one mode tab, which then rendered as two
+    // centered tabs (e.g. Terminals + Swarm) sharing `CENTER_TERMINALS_TAB_ID`
+    // — making the duplicate appear unclickable. Keep the first, drop the rest.
+    let mut seen_mode_tab = false;
+    workspace.center_tabs.retain(|tab| {
+        let is_mode = is_workspace_mode_tab_kind(&tab.kind) || tab.id == CENTER_TERMINALS_TAB_ID;
+        if is_mode {
+            if seen_mode_tab {
+                return false;
+            }
+            seen_mode_tab = true;
+        }
+        true
+    });
     if let Some(tab) = workspace
         .center_tabs
         .iter_mut()
@@ -5237,6 +5253,43 @@ mod center_tab_tests {
         assert_eq!(mode_tabs[0].title, "Canvas");
         assert!(matches!(mode_tabs[0].kind, CenterTabKind::Canvas));
         assert_eq!(ws.center_active_tab_id, 42);
+    }
+
+    #[test]
+    fn repair_collapses_duplicate_mode_tabs() {
+        // A corrupted snapshot carrying both a Terminals and a Swarm mode tab
+        // must collapse to a single canonical view-mode tab on load — no
+        // duplicate (and unclickable) centered tab.
+        let mut ws = mk_workspace(
+            1,
+            vec![
+                CenterTab::kanban(),
+                CenterTab::terminals(),
+                CenterTab {
+                    id: 999,
+                    title: "Swarm".into(),
+                    kind: CenterTabKind::Swarm,
+                },
+            ],
+        );
+        ws.view_mode = WorkspaceViewMode::Swarm;
+
+        repair_center_tab_state(&mut ws);
+
+        let mode_tabs: Vec<_> = ws
+            .center_tabs
+            .iter()
+            .filter(|tab| is_workspace_mode_tab_kind(&tab.kind) || tab.id == CENTER_TERMINALS_TAB_ID)
+            .collect();
+        assert_eq!(mode_tabs.len(), 1, "duplicate mode tabs must be collapsed");
+        assert_eq!(mode_tabs[0].id, CENTER_TERMINALS_TAB_ID);
+        assert!(matches!(mode_tabs[0].kind, CenterTabKind::Swarm));
+        // No two center tabs may share an id.
+        let mut ids: Vec<u64> = ws.center_tabs.iter().map(|t| t.id).collect();
+        ids.sort_unstable();
+        let mut deduped = ids.clone();
+        deduped.dedup();
+        assert_eq!(ids, deduped, "center tab ids must be unique");
     }
 
     #[test]
