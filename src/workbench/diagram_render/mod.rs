@@ -30,6 +30,8 @@ use web_sys::{HtmlElement, PointerEvent, WheelEvent};
 const ZOOM_STEP: f64 = 1.2;
 const ZOOM_MIN: f64 = 0.25;
 const ZOOM_MAX: f64 = 4.0;
+const VIEWPORT_ANCHOR_X: f64 = 0.25;
+const VIEWPORT_ANCHOR_Y: f64 = 0.25;
 const SOURCE_RENDER_DEBOUNCE_MS: u32 = 180;
 const INSPECTOR_DEFAULT_WIDTH_PX: f64 = 420.0;
 const INSPECTOR_MIN_WIDTH_PX: f64 = 280.0;
@@ -399,10 +401,12 @@ pub fn InteractiveDiagramViewport(
         let rect = el.get_bounding_client_rect();
         let local_x = client_x - rect.left();
         let local_y = client_y - rect.top();
-        let content_x = (local_x - pan_x.get_untracked()) / old_zoom;
-        let content_y = (local_y - pan_y.get_untracked()) / old_zoom;
-        pan_x.set(local_x - (content_x * new_zoom));
-        pan_y.set(local_y - (content_y * new_zoom));
+        let anchor_x = rect.width() * VIEWPORT_ANCHOR_X;
+        let anchor_y = rect.height() * VIEWPORT_ANCHOR_Y;
+        let content_x = (local_x - anchor_x - pan_x.get_untracked()) / old_zoom;
+        let content_y = (local_y - anchor_y - pan_y.get_untracked()) / old_zoom;
+        pan_x.set(local_x - anchor_x - (content_x * new_zoom));
+        pan_y.set(local_y - anchor_y - (content_y * new_zoom));
         zoom.set(new_zoom);
     };
 

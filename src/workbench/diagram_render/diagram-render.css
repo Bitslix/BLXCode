@@ -52,8 +52,8 @@
 
 .diagram-viewport__surface {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: 25%;
+  left: 25%;
   min-width: max-content;
   min-height: max-content;
   transform-origin: 0 0;
