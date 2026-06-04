@@ -54,4 +54,4 @@ Implement true parallel BLXCode Agent chat sessions per workspace on a new Git b
 - [x] `integrate-notifications` - Connect background done/error/ask events to the existing Agent notification system with session targets.
 - [x] `update-agent-docs` - Update system prompt/tool docs so BLXCode Agent fully supports multi-session toolcalls, asks, and notifications.
 - [x] `add-i18n-and-token-css` - Add all required i18n strings and ensure new CSS uses only theme tokens.
-- [>] `verify-multi-session` - Run automated and manual checks for concurrency, restart persistence, notifications, themes, and locales.
+- [x] `verify-multi-session` - Run automated and manual checks for concurrency, restart persistence, notifications, themes, and locales.
