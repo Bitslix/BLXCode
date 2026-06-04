@@ -12,10 +12,7 @@ use leptos::prelude::*;
 use uuid::Uuid;
 
 #[component]
-pub fn MermaidView(
-    session: EditorSession,
-    reload_tick: ReadSignal<u32>,
-) -> impl IntoView {
+pub fn MermaidView(session: EditorSession, reload_tick: ReadSignal<u32>) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
     let toast = expect_context::<ToastService>();

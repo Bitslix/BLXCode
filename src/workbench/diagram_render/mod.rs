@@ -13,9 +13,9 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::workbench::file_preview::codemirror_glue as cm;
 use crate::workbench::file_preview::codemirror_glue::EditorKeyBinding;
-use gloo_timers::callback::Timeout;
 use crate::workbench::file_preview::mermaid_glue::render_mermaid_to_svg;
 use crate::workbench::theme_service::ThemeService;
+use gloo_timers::callback::Timeout;
 use leptos::html;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -118,23 +118,16 @@ pub fn rendered_svg_outer_html(dom_id: &str) -> Option<String> {
 
 #[component]
 pub fn MermaidPreviewWithInspector(
-    #[prop(into)]
-    source: RwSignal<String>,
+    #[prop(into)] source: RwSignal<String>,
     dom_id: String,
-    #[prop(into)]
-    inspector_open: Signal<bool>,
-    #[prop(into)]
-    can_save: Signal<bool>,
-    #[prop(into)]
-    can_revert: Signal<bool>,
+    #[prop(into)] inspector_open: Signal<bool>,
+    #[prop(into)] can_save: Signal<bool>,
+    #[prop(into)] can_revert: Signal<bool>,
     on_save: Callback<()>,
     on_revert: Callback<()>,
-    #[prop(default = true)]
-    allow_save: bool,
-    #[prop(default = false)]
-    compact: bool,
-    #[prop(optional)]
-    children: Option<Children>,
+    #[prop(default = true)] allow_save: bool,
+    #[prop(default = false)] compact: bool,
+    #[prop(optional)] children: Option<Children>,
 ) -> impl IntoView {
     let preview_code = RwSignal::new(source.get_untracked());
     let pending_debounce = StoredValue::new_local(None::<Timeout>);
@@ -178,16 +171,12 @@ pub fn MermaidPreviewWithInspector(
 
 #[component]
 pub fn MermaidSourceInspector(
-    #[prop(into)]
-    source: RwSignal<String>,
-    #[prop(into)]
-    can_save: Signal<bool>,
-    #[prop(into)]
-    can_revert: Signal<bool>,
+    #[prop(into)] source: RwSignal<String>,
+    #[prop(into)] can_save: Signal<bool>,
+    #[prop(into)] can_revert: Signal<bool>,
     on_save: Callback<()>,
     on_revert: Callback<()>,
-    #[prop(default = true)]
-    allow_save: bool,
+    #[prop(default = true)] allow_save: bool,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     view! {
@@ -225,11 +214,9 @@ pub fn MermaidSourceInspector(
 
 #[component]
 fn MermaidSourceEditor(
-    #[prop(into)]
-    source: RwSignal<String>,
+    #[prop(into)] source: RwSignal<String>,
     on_save: Callback<()>,
-    #[prop(default = false)]
-    read_only: bool,
+    #[prop(default = false)] read_only: bool,
 ) -> impl IntoView {
     let host_ref = NodeRef::<html::Div>::new();
     let view_handle = StoredValue::new_local(None::<JsValue>);
@@ -318,10 +305,8 @@ pub fn InteractiveDiagramViewport(
     code: Signal<String>,
     /// Stable DOM id of the render container (used to read back the SVG).
     dom_id: String,
-    #[prop(default = false)]
-    compact: bool,
-    #[prop(optional)]
-    children: Option<Children>,
+    #[prop(default = false)] compact: bool,
+    #[prop(optional)] children: Option<Children>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let zoom = RwSignal::new(1.0_f64);
@@ -361,7 +346,11 @@ pub fn InteractiveDiagramViewport(
             return;
         };
         let rect = el.get_bounding_client_rect();
-        zoom_at(rect.left() + rect.width() / 2.0, rect.top() + rect.height() / 2.0, -1.0);
+        zoom_at(
+            rect.left() + rect.width() / 2.0,
+            rect.top() + rect.height() / 2.0,
+            -1.0,
+        );
     };
     let zoom_out = move |_| {
         let Some(el) = viewport_ref.get_untracked() else {
@@ -369,7 +358,11 @@ pub fn InteractiveDiagramViewport(
             return;
         };
         let rect = el.get_bounding_client_rect();
-        zoom_at(rect.left() + rect.width() / 2.0, rect.top() + rect.height() / 2.0, 1.0);
+        zoom_at(
+            rect.left() + rect.width() / 2.0,
+            rect.top() + rect.height() / 2.0,
+            1.0,
+        );
     };
     let zoom_reset = move |_| {
         zoom.set(1.0);

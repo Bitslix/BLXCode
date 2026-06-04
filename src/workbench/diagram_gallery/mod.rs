@@ -326,10 +326,8 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                     });
                     toast.success(i18n.tr(I18nKey::FilePreviewEditorSaved)().to_string());
                 }
-                Err(e) => toast.error(
-                    i18n.tr(I18nKey::FilePreviewEditorSaveError)()
-                        .replace("{detail}", &e),
-                ),
+                Err(e) => toast
+                    .error(i18n.tr(I18nKey::FilePreviewEditorSaveError)().replace("{detail}", &e)),
             }
         });
     });
