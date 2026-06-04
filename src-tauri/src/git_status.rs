@@ -2,7 +2,9 @@
 //! filesystem watcher that emits `git_status_dirty` whenever the work tree
 //! or `.git` index changes. Used by the sidebar `File Diff` section.
 
-use crate::git_info::{find_git_dir, git_cli_available};
+use crate::git_info::{
+    find_git_dir, git_cli_available, resolve_work_tree as resolve_git_work_tree,
+};
 use crate::git_remote::{remote_work_tree, run_git_remote, run_git_remote_lenient};
 use crate::proc::command;
 use crate::pty_host::PtyManager;
@@ -120,12 +122,7 @@ fn git_status_changes_impl(cwd: String) -> Result<Vec<ChangedFile>, String> {
     if trimmed.is_empty() {
         return Err("cwd is empty".into());
     }
-    let start = Path::new(trimmed);
-    let git_dir = find_git_dir(start).ok_or_else(|| "not a git repository".to_string())?;
-    let work_tree = git_dir
-        .parent()
-        .ok_or_else(|| "invalid git dir".to_string())?
-        .to_path_buf();
+    let work_tree = resolve_work_tree(trimmed)?;
 
     let porcelain = run_git(&work_tree, &["status", "--porcelain=v1", "-z"])?;
     let mut entries = parse_porcelain(&porcelain);
@@ -221,12 +218,7 @@ fn git_file_diff_impl(cwd: String, rel_path: String, staged: bool) -> Result<Str
     if rel.is_empty() {
         return Err("rel_path is empty".into());
     }
-    let start = Path::new(trimmed);
-    let git_dir = find_git_dir(start).ok_or_else(|| "not a git repository".to_string())?;
-    let work_tree = git_dir
-        .parent()
-        .ok_or_else(|| "invalid git dir".to_string())?
-        .to_path_buf();
+    let work_tree = resolve_work_tree(trimmed)?;
 
     let mut args: Vec<&str> = vec!["diff"];
     if staged {
@@ -428,12 +420,7 @@ fn resolve_work_tree(cwd: &str) -> Result<PathBuf, String> {
     if trimmed.is_empty() {
         return Err("cwd is empty".into());
     }
-    let start = Path::new(trimmed);
-    let git_dir = find_git_dir(start).ok_or_else(|| "not a git repository".to_string())?;
-    git_dir
-        .parent()
-        .map(Path::to_path_buf)
-        .ok_or_else(|| "invalid git dir".to_string())
+    resolve_git_work_tree(Path::new(trimmed)).ok_or_else(|| "not a git repository".to_string())
 }
 
 fn run_git(work_tree: &Path, args: &[&str]) -> Result<String, String> {

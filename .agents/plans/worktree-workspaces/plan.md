@@ -92,7 +92,7 @@ the BLXCode Agent get the same worktree creation/opening capability.
 ## Tasks
 
 - [x] `worktree-model` - Add persisted worktree metadata to workspace entries and create-workspace drafts.
-- [ ] `worktree-git-root` - Replace local Git root resolution with `git rev-parse --show-toplevel` based helper.
+- [x] `worktree-git-root` - Replace local Git root resolution with `git rev-parse --show-toplevel` based helper.
 - [ ] `worktree-backend-local` - Implement local worktree list/create/open-info/remove commands with validation and existing-worktree detection.
 - [ ] `worktree-backend-remote` - Implement remote SSH worktree list/create/open-info/remove using RemoteExecManager.
 - [ ] `worktree-remote-pty-cwd` - Pass workspace cwd as remote_dir into remote PTY spawning so remote terminals start in the active worktree.
