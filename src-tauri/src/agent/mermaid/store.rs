@@ -208,6 +208,28 @@ pub fn list_diagrams(ws: &str, slug: &str) -> Result<Vec<DiagramRecord>, String>
     Ok(out)
 }
 
+/// Update the source for an existing diagram, preserving manifest metadata.
+pub fn update_diagram(ws: &str, slug: &str, id: &str, code: &str) -> Result<DiagramRecord, String> {
+    validate_id(id)?;
+    let dir = diagrams_dir(ws, slug)?;
+    let manifest = read_manifest(&dir);
+    let meta = manifest
+        .diagrams
+        .iter()
+        .find(|d| d.id == id)
+        .cloned()
+        .ok_or_else(|| format!("diagram '{id}' not found"))?;
+    let path = dir.join(format!("{id}.mmd"));
+    if !path.exists() {
+        return Err(format!("diagram source '{id}' not found"));
+    }
+    fs::write(&path, code).map_err(|e| format!("write diagram source: {e}"))?;
+    Ok(DiagramRecord {
+        meta,
+        code: code.to_string(),
+    })
+}
+
 /// Delete a single diagram (source + manifest entry).
 pub fn delete_diagram(ws: &str, slug: &str, id: &str) -> Result<(), String> {
     validate_id(id)?;
@@ -285,5 +307,50 @@ mod tests {
             None
         )
         .is_err());
+    }
+
+    #[test]
+    fn update_diagram_updates_source_and_returns_new_code() {
+        let ws = tmp_ws();
+        create_diagram(
+            &ws,
+            "p",
+            "Auth Flow",
+            "flowchart TD\n A-->B",
+            "flowchart",
+            Some("setup-auth".into()),
+            Some("auth-flow".into()),
+            Some("openrouter".into()),
+            Some("openai/gpt-5".into()),
+        )
+        .unwrap();
+
+        let updated = update_diagram(&ws, "p", "auth-flow", "sequenceDiagram\n A->>B: hi").unwrap();
+
+        assert_eq!(updated.meta.id, "auth-flow");
+        assert_eq!(updated.meta.title, "Auth Flow");
+        assert_eq!(updated.meta.kind, "flowchart");
+        assert_eq!(updated.meta.task_id.as_deref(), Some("setup-auth"));
+        assert_eq!(updated.meta.provider.as_deref(), Some("openrouter"));
+        assert_eq!(updated.meta.model.as_deref(), Some("openai/gpt-5"));
+        assert_eq!(updated.code, "sequenceDiagram\n A->>B: hi");
+        let listed = list_diagrams(&ws, "p").unwrap();
+        assert_eq!(listed[0].code, "sequenceDiagram\n A->>B: hi");
+    }
+
+    #[test]
+    fn update_diagram_rejects_invalid_id() {
+        let ws = tmp_ws();
+        assert!(update_diagram(&ws, "p", "../evil", "flowchart TD\n A-->B").is_err());
+    }
+
+    #[test]
+    fn update_diagram_errors_for_missing_diagram() {
+        let ws = tmp_ws();
+        create_diagram(&ws, "p", "Flow", "a", "flowchart", None, None, None, None).unwrap();
+
+        let err = update_diagram(&ws, "p", "missing", "b").unwrap_err();
+
+        assert!(err.contains("not found"));
     }
 }

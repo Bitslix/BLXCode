@@ -54,6 +54,16 @@ pub fn mermaid_delete_diagram(
     store::delete_diagram(&workspace_cwd, &slug, &id)
 }
 
+#[tauri::command]
+pub fn mermaid_update_diagram(
+    workspace_cwd: String,
+    slug: String,
+    id: String,
+    code: String,
+) -> Result<DiagramRecord, String> {
+    store::update_diagram(&workspace_cwd, &slug, &id, &code)
+}
+
 /// Export a diagram as a self-contained Markdown file via a native Save dialog.
 /// Returns the saved path, or `None` if the user cancelled.
 #[tauri::command]
