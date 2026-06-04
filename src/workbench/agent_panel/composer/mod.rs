@@ -216,7 +216,7 @@ fn model_row(
     active: String,
     favorites: HashSet<String>,
     model_favorites: RwSignal<HashSet<String>>,
-    persist: impl Fn(Option<String>, Option<ThinkingLevel>) + Copy + 'static,
+    persist: impl Fn(AgentProviderKind, Option<String>, Option<ThinkingLevel>) + Copy + 'static,
     model_open: RwSignal<bool>,
 ) -> AnyView {
     let i18n = expect_context::<I18nService>();
@@ -253,7 +253,7 @@ fn model_row(
                     type="button"
                     class="agent-composer__model-main"
                     on:click=move |_| {
-                        persist(Some(select_id.clone()), None);
+                        persist(provider, Some(select_id.clone()), None);
                         model_open.set(false);
                     }
                 >
@@ -384,12 +384,22 @@ pub fn Composer(
     }
 
     // Persist a model / thinking change, preserving every other setting.
-    let persist = move |new_model: Option<String>, new_think: Option<ThinkingLevel>| {
+    let persist = move |provider: AgentProviderKind,
+                        new_model: Option<String>,
+                        new_think: Option<ThinkingLevel>| {
         let Some(view) = settings.get_untracked() else {
             return;
         };
-        let provider = view.provider;
-        let model_id = new_model.clone().unwrap_or_else(|| view.model_id.clone());
+        let model_id = new_model.clone().unwrap_or_else(|| {
+            if provider == view.provider {
+                view.model_id.clone()
+            } else {
+                String::new()
+            }
+        });
+        if model_id.is_empty() {
+            return;
+        }
         let level = new_think.unwrap_or(view.thinking_level);
         leptos::task::spawn_local(async move {
             if let Ok(updated) = agent_settings_save(
@@ -413,6 +423,7 @@ pub fn Composer(
                     updated.model_id
                 ));
                 thinking.set(updated.thinking_level);
+                open_provider_group.set(provider_cache_key(updated.provider));
                 settings.set(Some(updated));
             }
         });
@@ -725,7 +736,11 @@ pub fn Composer(
                                         class="agent-composer__option"
                                         class:agent-composer__option--active=move || is_active.get()
                                         on:click=move |_| {
-                                            persist(None, Some(level));
+                                            let provider = settings
+                                                .get_untracked()
+                                                .map(|view| view.provider)
+                                                .unwrap_or(AgentProviderKind::Openrouter);
+                                            persist(provider, None, Some(level));
                                             think_open.set(false);
                                         }
                                     >
