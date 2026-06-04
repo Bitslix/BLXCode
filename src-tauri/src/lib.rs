@@ -375,6 +375,7 @@ pub fn run() {
             agent::mermaid::commands::mermaid_list_diagrams,
             agent::mermaid::commands::mermaid_create_diagram,
             agent::mermaid::commands::mermaid_delete_diagram,
+            agent::mermaid::commands::mermaid_update_diagram,
             agent::mermaid::commands::mermaid_export_markdown,
             agent::mermaid::commands::mermaid_export_pdf,
             kanban::kanban_board_load,

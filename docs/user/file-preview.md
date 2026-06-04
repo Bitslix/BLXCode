@@ -11,7 +11,7 @@ The preview picks a renderer based on the file extension:
 | **Image** | `png`, `jpg`, `jpeg`, `webp`, `gif`, `avif`, `bmp`, `ico`, `svg` | Centered raster `<img>` (base64 data URL) or sanitized inline SVG |
 | **Video** | `mp4`, `webm`, `mov`, `m4v`, `mkv` | Native `<video controls>` with HTML5 playback |
 | **Markdown** | `md`, `markdown` | `pulldown-cmark` (GFM tables, strikethrough, task lists, footnotes, smart punctuation) with sanitized HTML and inline Mermaid blocks |
-| **Mermaid** | `mmd`, `mermaid` | Lazy-loaded [Mermaid 11](https://mermaid.js.org/) diagram via vendored bundle |
+| **Mermaid** | `mmd`, `mermaid` | Lazy-loaded [Mermaid 11](https://mermaid.js.org/) diagram with drag-pan, mouse-wheel zoom, and a CodeMirror source inspector |
 | **Code** | `rs`, `ts`, `tsx`, `js`, `jsx`, `mjs`, `cjs`, `py`, `go`, `java`, `kt`, `scala`, `swift`, `c`, `cpp`, `cs`, `rb`, `php`, `lua`, `dart`, `r`, `clj`, `ex`, `hs`, `elm`, `zig`, `nim`, `html`, `vue`, `svelte`, `css`, `scss`, `less`, `json`, `toml`, `yaml`, `xml`, `sh`, `bash`, `ps1`, `sql`, `graphql`, `proto`, `tf`, `nix`, `dockerfile`, `makefile`, `diff`, … | **CodeMirror 6** editor: line-number gutter, native syntax highlighting, code folding, and text selection. Preview is the editor in **read-only** mode; editable code/text opens straight in edit mode. |
 | **Text** | `txt`, `log`, `ini`, `conf`, `env`, `properties`, `csv`, `tsv`, `editorconfig`, … | Same CodeMirror editor as Code, rendered as plain monospaced text (no language grammar). |
 | **Binary** | everything else | "Preview not available for this file type" placeholder |
@@ -230,9 +230,23 @@ All editor and preview settings persist under `blxcode_editor_settings_v1` in `l
 
 ## Mermaid files
 
-`.mmd` and `.mermaid` files render as a single full-tab diagram. The first preview on a session lazily loads the vendored Mermaid bundle from `public/vendor/mermaid/mermaid.min.js` and calls `mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'dark' })`; subsequent previews reuse `globalThis.mermaid` without re-downloading.
+`.mmd` and `.mermaid` files render as a single full-tab diagram. The first preview on a session lazily loads the vendored Mermaid bundle from `public/vendor/mermaid/mermaid.min.js` and initializes it with `securityLevel: 'strict'` plus theme variables derived from the active BLXCode theme; subsequent previews reuse `globalThis.mermaid` without re-downloading.
 
-If Mermaid fails to load or the graph source is invalid, the preview keeps the file's text on screen and shows the translated **"Mermaid diagram could not be rendered"** banner. The technical error goes to the browser DevTools console (`console.warn`) for debugging — it is not leaked into the localized UI.
+The preview uses the same interactive viewport as the Diagram gallery:
+
+- Left-drag pans the diagram canvas.
+- A normal mouse wheel zooms around the cursor.
+- Toolbar controls in the lower-right corner zoom out, zoom in, and reset the view.
+
+Click **Edit** in the file-preview header to open the Mermaid source inspector. The inspector is CodeMirror-backed, follows the active theme, and appears as a resizable right split on wide panes or a bottom drawer on narrow panes. Drag the thin divider between the diagram and inspector to resize the source panel width. Typing updates the rendered diagram after a short debounce.
+
+Saving and reverting Mermaid files uses the same `EditorSession` flow as code/text/Markdown editing:
+
+- **Save** writes through the conflict-guarded `write_workspace_text_file` path.
+- **Revert changes** restores the last loaded/saved source.
+- Protected folders, too-large/truncated files, local/Remote SSH routing, and out-of-band change conflict prompts behave the same as other editable text files.
+
+If Mermaid fails to load or the graph source is invalid, the preview keeps the edited source in the inspector and shows the translated **"Mermaid diagram could not be rendered"** banner. The technical error goes to the browser DevTools console (`console.warn`) for debugging — it is not leaked into the localized UI.
 
 ## Errors and edge cases
 

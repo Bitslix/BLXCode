@@ -3183,6 +3183,32 @@ pub async fn mermaid_delete_diagram(ws: &str, slug: &str, id: &str) -> Result<()
     .await
 }
 
+pub async fn mermaid_update_diagram(
+    ws: &str,
+    slug: &str,
+    id: &str,
+    code: &str,
+) -> Result<DiagramRecord, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args<'a> {
+        workspace_cwd: &'a str,
+        slug: &'a str,
+        id: &'a str,
+        code: &'a str,
+    }
+    invoke_typed(
+        "mermaid_update_diagram",
+        Args {
+            workspace_cwd: ws,
+            slug,
+            id,
+            code,
+        },
+    )
+    .await
+}
+
 /// Export a diagram as Markdown via a native Save dialog. `Ok(None)` on cancel.
 pub async fn mermaid_export_markdown(
     title: &str,
