@@ -7626,7 +7626,7 @@ button {
   border-bottom: 1px solid var(--overlay-2);
   background:
     linear-gradient(180deg, var(--overlay-1), var(--overlay-2)),
-    var(--scrim-bg);
+    color-mix(in srgb, var(--bg-raised) 84%, var(--bg-app));
 }
 
 .workspace-center-tabs__strip {
@@ -8218,10 +8218,10 @@ button {
   min-height: 0;
   height: 100%;
   /* Same top glow as the Create-Workspace screen (`.ws-config`) over the
-     scrim base, so Settings shares the workbench backdrop. Theme-token based. */
+     app base, so Settings shares the workbench backdrop. Theme-token based. */
   background:
     radial-gradient(ellipse at top, var(--overlay-1), transparent 60%),
-    var(--scrim-bg);
+    var(--bg-app);
 }
 
 .harness-settings-grid--docked .harness-settings-detail {
