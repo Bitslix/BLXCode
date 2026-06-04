@@ -19,7 +19,12 @@ use leptos::task::spawn_local;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use wasm_bindgen::JsCast;
-use web_sys::HtmlElement;
+use web_sys::{HtmlElement, PointerEvent, WheelEvent};
+
+/// Zoom step / bounds for interactive diagram viewports.
+const ZOOM_STEP: f64 = 1.2;
+const ZOOM_MIN: f64 = 0.25;
+const ZOOM_MAX: f64 = 4.0;
 
 // Process-wide counter for unique Mermaid render ids (the library requires a
 // unique element id per `render` call).
@@ -98,6 +103,165 @@ pub fn rendered_svg_outer_html(dom_id: &str) -> Option<String> {
         .ok()
         .flatten()?;
     svg.dyn_ref::<web_sys::Element>().map(|e| e.outer_html())
+}
+
+#[component]
+pub fn InteractiveDiagramViewport(
+    /// Raw Mermaid source.
+    #[prop(into)]
+    code: Signal<String>,
+    /// Stable DOM id of the render container (used to read back the SVG).
+    dom_id: String,
+    #[prop(default = false)]
+    compact: bool,
+    #[prop(optional)]
+    children: Option<Children>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let zoom = RwSignal::new(1.0_f64);
+    let pan_x = RwSignal::new(0.0_f64);
+    let pan_y = RwSignal::new(0.0_f64);
+    let dragging = RwSignal::new(false);
+    let drag_start = RwSignal::new((0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64));
+    let viewport_ref: NodeRef<html::Div> = NodeRef::new();
+
+    let zoom_at = move |client_x: f64, client_y: f64, direction: f64| {
+        let old_zoom = zoom.get_untracked();
+        let new_zoom = if direction < 0.0 {
+            (old_zoom * ZOOM_STEP).min(ZOOM_MAX)
+        } else {
+            (old_zoom / ZOOM_STEP).max(ZOOM_MIN)
+        };
+        if (new_zoom - old_zoom).abs() < f64::EPSILON {
+            return;
+        }
+        let Some(el) = viewport_ref.get_untracked() else {
+            zoom.set(new_zoom);
+            return;
+        };
+        let rect = el.get_bounding_client_rect();
+        let local_x = client_x - rect.left();
+        let local_y = client_y - rect.top();
+        let content_x = (local_x - pan_x.get_untracked()) / old_zoom;
+        let content_y = (local_y - pan_y.get_untracked()) / old_zoom;
+        pan_x.set(local_x - (content_x * new_zoom));
+        pan_y.set(local_y - (content_y * new_zoom));
+        zoom.set(new_zoom);
+    };
+
+    let zoom_in = move |_| {
+        let Some(el) = viewport_ref.get_untracked() else {
+            zoom.update(|z| *z = (*z * ZOOM_STEP).min(ZOOM_MAX));
+            return;
+        };
+        let rect = el.get_bounding_client_rect();
+        zoom_at(rect.left() + rect.width() / 2.0, rect.top() + rect.height() / 2.0, -1.0);
+    };
+    let zoom_out = move |_| {
+        let Some(el) = viewport_ref.get_untracked() else {
+            zoom.update(|z| *z = (*z / ZOOM_STEP).max(ZOOM_MIN));
+            return;
+        };
+        let rect = el.get_bounding_client_rect();
+        zoom_at(rect.left() + rect.width() / 2.0, rect.top() + rect.height() / 2.0, 1.0);
+    };
+    let zoom_reset = move |_| {
+        zoom.set(1.0);
+        pan_x.set(0.0);
+        pan_y.set(0.0);
+    };
+    let on_wheel = move |ev: WheelEvent| {
+        ev.prevent_default();
+        zoom_at(ev.client_x() as f64, ev.client_y() as f64, ev.delta_y());
+    };
+    let on_pointer_down = move |ev: PointerEvent| {
+        if ev.button() != 0 {
+            return;
+        }
+        ev.prevent_default();
+        dragging.set(true);
+        drag_start.set((
+            ev.client_x() as f64,
+            ev.client_y() as f64,
+            pan_x.get_untracked(),
+            pan_y.get_untracked(),
+        ));
+        if let Some(el) = viewport_ref.get_untracked() {
+            let _ = el.set_pointer_capture(ev.pointer_id());
+        }
+    };
+    let on_pointer_move = move |ev: PointerEvent| {
+        if !dragging.get_untracked() {
+            return;
+        }
+        ev.prevent_default();
+        let (start_x, start_y, origin_x, origin_y) = drag_start.get_untracked();
+        pan_x.set(origin_x + (ev.client_x() as f64 - start_x));
+        pan_y.set(origin_y + (ev.client_y() as f64 - start_y));
+    };
+    let on_pointer_up = move |ev: PointerEvent| {
+        dragging.set(false);
+        if let Some(el) = viewport_ref.get_untracked() {
+            let _ = el.release_pointer_capture(ev.pointer_id());
+        }
+    };
+
+    view! {
+        <div
+            node_ref=viewport_ref
+            class="diagram-viewport"
+            class:diagram-viewport--compact=move || compact
+            class:diagram-viewport--dragging=move || dragging.get()
+            on:wheel=on_wheel
+            on:pointerdown=on_pointer_down
+            on:pointermove=on_pointer_move
+            on:pointerup=on_pointer_up
+            on:pointercancel=on_pointer_up
+        >
+            <div
+                class="diagram-viewport__surface"
+                style=move || format!(
+                    "transform: translate({:.2}px, {:.2}px) scale({:.3});",
+                    pan_x.get(),
+                    pan_y.get(),
+                    zoom.get(),
+                )
+            >
+                <DiagramRender code=code dom_id=dom_id />
+            </div>
+            {children.map(|children| children())}
+            <div
+                class="diagram-viewport__zoom"
+                role="group"
+                aria-label=move || i18n.tr(I18nKey::DiagramZoomGroupAria)()
+            >
+                <button
+                    class="diagram-viewport__zoom-btn"
+                    on:click=zoom_out
+                    title=move || i18n.tr(I18nKey::DiagramZoomOut)()
+                >
+                    "−"
+                </button>
+                <span class="diagram-viewport__zoom-level">
+                    {move || format!("{:.0}%", zoom.get() * 100.0)}
+                </span>
+                <button
+                    class="diagram-viewport__zoom-btn"
+                    on:click=zoom_in
+                    title=move || i18n.tr(I18nKey::DiagramZoomIn)()
+                >
+                    "+"
+                </button>
+                <button
+                    class="diagram-viewport__zoom-btn"
+                    on:click=zoom_reset
+                    title=move || i18n.tr(I18nKey::DiagramZoomReset)()
+                >
+                    "⟳"
+                </button>
+            </div>
+        </div>
+    }
 }
 
 #[component]

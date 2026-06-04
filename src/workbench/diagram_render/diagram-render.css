@@ -34,6 +34,95 @@
   font-size: 12px;
 }
 
+.diagram-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-raised);
+  border-radius: var(--radius-md);
+  cursor: grab;
+  touch-action: none;
+}
+
+.diagram-viewport--dragging {
+  cursor: grabbing;
+}
+
+.diagram-viewport__surface {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  min-width: max-content;
+  min-height: max-content;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.diagram-viewport__surface .diagram-render {
+  width: max-content;
+  min-width: 320px;
+}
+
+.diagram-viewport__surface .diagram-render__stage {
+  overflow: visible;
+  padding: 24px;
+  min-width: max-content;
+  min-height: max-content;
+  background: transparent;
+}
+
+.diagram-viewport__surface .diagram-render__stage svg {
+  max-width: none;
+}
+
+.diagram-viewport--compact .diagram-viewport__surface .diagram-render__stage {
+  padding: 14px;
+}
+
+.diagram-viewport__zoom {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-panel) 86%, transparent);
+  backdrop-filter: blur(6px);
+  z-index: 2;
+}
+
+.diagram-viewport__zoom-btn {
+  min-width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.diagram-viewport__zoom-btn:hover {
+  background: var(--bg-hover);
+}
+
+.diagram-viewport__zoom-level {
+  min-width: 40px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Inline diagram cards rendered for mermaid_create* tool results in the
    agent timeline. */
 .diagram-result {

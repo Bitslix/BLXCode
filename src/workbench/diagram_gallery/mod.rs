@@ -15,19 +15,12 @@ use crate::tauri_bridge::{
     DiagramRecord, TimelineDiagram,
 };
 use crate::workbench::diagram_render::{
-    diagram_first_seen, rendered_svg_outer_html, DiagramRender,
+    diagram_first_seen, rendered_svg_outer_html, InteractiveDiagramViewport,
 };
 use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
-use leptos::html;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use wasm_bindgen::JsCast;
-
-/// Zoom step / bounds for the centered diagram viewport.
-const ZOOM_STEP: f64 = 1.2;
-const ZOOM_MIN: f64 = 0.25;
-const ZOOM_MAX: f64 = 4.0;
 
 /// What a gallery tab shows.
 #[derive(Debug, Clone, PartialEq)]
@@ -202,36 +195,6 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
         diagrams.with(|d| d.get(active.get()).and_then(GalleryItem::model_label))
     });
 
-    // --- Zoom / pan viewport ----------------------------------------------
-    let zoom = RwSignal::new(1.0_f64);
-    let viewport_ref: NodeRef<html::Div> = NodeRef::new();
-    let center_viewport = move || {
-        if let Some(el) = viewport_ref.get_untracked() {
-            let el: web_sys::HtmlElement = el.unchecked_into();
-            let x = (el.scroll_width() - el.client_width()).max(0) / 2;
-            let y = (el.scroll_height() - el.client_height()).max(0) / 2;
-            el.set_scroll_left(x);
-            el.set_scroll_top(y);
-        }
-    };
-    let zoom_in = move |_| zoom.update(|z| *z = (*z * ZOOM_STEP).min(ZOOM_MAX));
-    let zoom_out = move |_| zoom.update(|z| *z = (*z / ZOOM_STEP).max(ZOOM_MIN));
-    let zoom_reset = move |_| {
-        zoom.set(1.0);
-        center_viewport();
-    };
-    // Ctrl/⌘ + wheel zooms (matches common diagram/editor affordance).
-    let on_wheel = move |ev: web_sys::WheelEvent| {
-        if ev.ctrl_key() || ev.meta_key() {
-            ev.prevent_default();
-            if ev.delta_y() < 0.0 {
-                zoom.update(|z| *z = (*z * ZOOM_STEP).min(ZOOM_MAX));
-            } else {
-                zoom.update(|z| *z = (*z / ZOOM_STEP).max(ZOOM_MIN));
-            }
-        }
-    };
-
     let toast_md = toast.clone();
     let on_export_md = move |_| {
         let title = active_title.get_untracked();
@@ -363,85 +326,47 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                         </button>
                     </Show>
                 </div>
-                <div class="diagram-gallery__active" node_ref=viewport_ref on:wheel=on_wheel>
-                    <div
-                        class="diagram-gallery__zoomable"
-                        style=move || format!("transform: scale({:.3});", zoom.get())
-                    >
-                        <DiagramRender code=active_code dom_id=STAGE_DOM_ID.to_string() />
-                    </div>
-
-                    // Stats overlay (bottom-left).
-                    <div class="diagram-gallery__stats">
-                        <div class="diagram-gallery__stat">
-                            <span class="diagram-gallery__stat-key">
-                                {move || i18n.tr(I18nKey::PlansOpenDiagrams)}
-                            </span>
-                            <span class="diagram-gallery__stat-val">
-                                {move || format!("{} / {}", active_pos.get(), diagram_count.get())}
-                            </span>
+                <div class="diagram-gallery__active">
+                    <InteractiveDiagramViewport code=active_code dom_id=STAGE_DOM_ID.to_string()>
+                        <div class="diagram-gallery__stats">
+                            <div class="diagram-gallery__stat">
+                                <span class="diagram-gallery__stat-key">
+                                    {move || i18n.tr(I18nKey::PlansOpenDiagrams)}
+                                </span>
+                                <span class="diagram-gallery__stat-val">
+                                    {move || format!("{} / {}", active_pos.get(), diagram_count.get())}
+                                </span>
+                            </div>
+                            <Show when=move || !active_kind.get().is_empty()>
+                                <div class="diagram-gallery__stat">
+                                    <span class="diagram-gallery__stat-key">
+                                        {move || i18n.tr(I18nKey::DiagramStatType)}
+                                    </span>
+                                    <span class="diagram-gallery__stat-val">{move || active_kind.get()}</span>
+                                </div>
+                            </Show>
+                            <Show when=move || active_gen_time.get().is_some()>
+                                <div class="diagram-gallery__stat">
+                                    <span class="diagram-gallery__stat-key">
+                                        {move || i18n.tr(I18nKey::DiagramStatGenerated)}
+                                    </span>
+                                    <span class="diagram-gallery__stat-val">
+                                        {move || active_gen_time.get().unwrap_or_default()}
+                                    </span>
+                                </div>
+                            </Show>
+                            <Show when=move || active_model_label.get().is_some()>
+                                <div class="diagram-gallery__stat">
+                                    <span class="diagram-gallery__stat-key">
+                                        {move || i18n.tr(I18nKey::DiagramStatModel)}
+                                    </span>
+                                    <span class="diagram-gallery__stat-val">
+                                        {move || active_model_label.get().unwrap_or_default()}
+                                    </span>
+                                </div>
+                            </Show>
                         </div>
-                        <Show when=move || !active_kind.get().is_empty()>
-                            <div class="diagram-gallery__stat">
-                                <span class="diagram-gallery__stat-key">
-                                    {move || i18n.tr(I18nKey::DiagramStatType)}
-                                </span>
-                                <span class="diagram-gallery__stat-val">{move || active_kind.get()}</span>
-                            </div>
-                        </Show>
-                        <Show when=move || active_gen_time.get().is_some()>
-                            <div class="diagram-gallery__stat">
-                                <span class="diagram-gallery__stat-key">
-                                    {move || i18n.tr(I18nKey::DiagramStatGenerated)}
-                                </span>
-                                <span class="diagram-gallery__stat-val">
-                                    {move || active_gen_time.get().unwrap_or_default()}
-                                </span>
-                            </div>
-                        </Show>
-                        <Show when=move || active_model_label.get().is_some()>
-                            <div class="diagram-gallery__stat">
-                                <span class="diagram-gallery__stat-key">
-                                    {move || i18n.tr(I18nKey::DiagramStatModel)}
-                                </span>
-                                <span class="diagram-gallery__stat-val">
-                                    {move || active_model_label.get().unwrap_or_default()}
-                                </span>
-                            </div>
-                        </Show>
-                    </div>
-
-                    // Zoom / center controls (bottom-right).
-                    <div
-                        class="diagram-gallery__zoom"
-                        role="group"
-                        aria-label=move || i18n.tr(I18nKey::DiagramZoomGroupAria)()
-                    >
-                        <button
-                            class="diagram-gallery__zoom-btn"
-                            on:click=zoom_out
-                            title=move || i18n.tr(I18nKey::DiagramZoomOut)()
-                        >
-                            "−"
-                        </button>
-                        <span class="diagram-gallery__zoom-level">
-                            {move || format!("{:.0}%", zoom.get() * 100.0)}
-                        </span>
-                        <button
-                            class="diagram-gallery__zoom-btn"
-                            on:click=zoom_in
-                            title=move || i18n.tr(I18nKey::DiagramZoomIn)()
-                        >
-                            "+"
-                        </button>
-                        <button
-                            class="diagram-gallery__zoom-btn"
-                            on:click=zoom_reset
-                            title=move || i18n.tr(I18nKey::DiagramZoomReset)()
-                        >
-                            "⟳"
-                        </button>
-                    </div>
+                    </InteractiveDiagramViewport>
                 </div>
             </Show>
         </div>
