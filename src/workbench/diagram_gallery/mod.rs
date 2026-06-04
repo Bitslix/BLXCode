@@ -14,7 +14,9 @@ use crate::tauri_bridge::{
     mermaid_delete_diagram, mermaid_export_markdown, mermaid_export_pdf, mermaid_list_diagrams,
     DiagramRecord, TimelineDiagram,
 };
-use crate::workbench::diagram_render::{diagram_first_seen, rendered_svg_outer_html, DiagramRender};
+use crate::workbench::diagram_render::{
+    diagram_first_seen, rendered_svg_outer_html, DiagramRender,
+};
 use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
 use leptos::html;
@@ -372,13 +374,17 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                         </div>
                         <Show when=move || !active_kind.get().is_empty()>
                             <div class="diagram-gallery__stat">
-                                <span class="diagram-gallery__stat-key">"Type"</span>
+                                <span class="diagram-gallery__stat-key">
+                                    {move || i18n.tr(I18nKey::DiagramStatType)}
+                                </span>
                                 <span class="diagram-gallery__stat-val">{move || active_kind.get()}</span>
                             </div>
                         </Show>
                         <Show when=move || active_gen_time.get().is_some()>
                             <div class="diagram-gallery__stat">
-                                <span class="diagram-gallery__stat-key">"Generated"</span>
+                                <span class="diagram-gallery__stat-key">
+                                    {move || i18n.tr(I18nKey::DiagramStatGenerated)}
+                                </span>
                                 <span class="diagram-gallery__stat-val">
                                     {move || active_gen_time.get().unwrap_or_default()}
                                 </span>
@@ -386,7 +392,9 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                         </Show>
                         <Show when=move || active_model_label.get().is_some()>
                             <div class="diagram-gallery__stat">
-                                <span class="diagram-gallery__stat-key">"Model"</span>
+                                <span class="diagram-gallery__stat-key">
+                                    {move || i18n.tr(I18nKey::DiagramStatModel)}
+                                </span>
                                 <span class="diagram-gallery__stat-val">
                                     {move || active_model_label.get().unwrap_or_default()}
                                 </span>
@@ -395,13 +403,35 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                     </div>
 
                     // Zoom / center controls (bottom-right).
-                    <div class="diagram-gallery__zoom" role="group" aria-label="Zoom">
-                        <button class="diagram-gallery__zoom-btn" on:click=zoom_out title="Zoom out">"−"</button>
+                    <div
+                        class="diagram-gallery__zoom"
+                        role="group"
+                        aria-label=move || i18n.tr(I18nKey::DiagramZoomGroupAria)()
+                    >
+                        <button
+                            class="diagram-gallery__zoom-btn"
+                            on:click=zoom_out
+                            title=move || i18n.tr(I18nKey::DiagramZoomOut)()
+                        >
+                            "−"
+                        </button>
                         <span class="diagram-gallery__zoom-level">
                             {move || format!("{:.0}%", zoom.get() * 100.0)}
                         </span>
-                        <button class="diagram-gallery__zoom-btn" on:click=zoom_in title="Zoom in">"+"</button>
-                        <button class="diagram-gallery__zoom-btn" on:click=zoom_reset title="Reset view">"⟳"</button>
+                        <button
+                            class="diagram-gallery__zoom-btn"
+                            on:click=zoom_in
+                            title=move || i18n.tr(I18nKey::DiagramZoomIn)()
+                        >
+                            "+"
+                        </button>
+                        <button
+                            class="diagram-gallery__zoom-btn"
+                            on:click=zoom_reset
+                            title=move || i18n.tr(I18nKey::DiagramZoomReset)()
+                        >
+                            "⟳"
+                        </button>
                     </div>
                 </div>
             </Show>

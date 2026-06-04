@@ -40,7 +40,9 @@ pub(crate) fn PersonalitySection() -> impl IntoView {
     let thinking_options = Signal::derive(move || {
         thinking_levels()
             .into_iter()
-            .map(|l| PickerOption::lucide(thinking_id(l), thinking_label(&i18n, l), thinking_icon(l)))
+            .map(|l| {
+                PickerOption::lucide(thinking_id(l), thinking_label(&i18n, l), thinking_icon(l))
+            })
             .collect::<Vec<_>>()
     });
 
@@ -231,7 +233,11 @@ pub(crate) fn PersonalitySection() -> impl IntoView {
 }
 
 #[component]
-fn GenderButton(target: GenderFilter, key: I18nKey, filter: RwSignal<GenderFilter>) -> impl IntoView {
+fn GenderButton(
+    target: GenderFilter,
+    key: I18nKey,
+    filter: RwSignal<GenderFilter>,
+) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     view! {
         <button

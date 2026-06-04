@@ -230,12 +230,14 @@ pub fn AgentSettingsPane() -> impl IntoView {
         ctx.thinking.set(view.thinking_level);
         ctx.tool_loop_limit.set(view.tool_loop_limit);
         ctx.auto_compact_enabled.set(view.auto_compact_enabled);
-        ctx.auto_compact_threshold.set(view.auto_compact_threshold_pct);
+        ctx.auto_compact_threshold
+            .set(view.auto_compact_threshold_pct);
         ctx.orb_mode.set(view.orb_mode);
         ctx.nickname.set(view.agent_nickname.clone());
         ctx.role.set(view.default_session_role.clone());
         ctx.provider_base_urls.set(view.provider_base_urls.clone());
-        ctx.cloudflare_account_id.set(view.cloudflare_account_id.clone());
+        ctx.cloudflare_account_id
+            .set(view.cloudflare_account_id.clone());
         ctx.chat_models.set(provider_cache(&view, view.provider));
         ctx.settings.set(Some(view));
     };
@@ -263,8 +265,17 @@ pub fn AgentSettingsPane() -> impl IntoView {
         let cf = ctx.cloudflare_account_id.get_untracked();
         leptos::task::spawn_local(async move {
             match agent_settings_save(
-                provider, model_id, level, loop_limit, ac_enabled, ac_threshold, orb, nick, role,
-                base_urls, cf,
+                provider,
+                model_id,
+                level,
+                loop_limit,
+                ac_enabled,
+                ac_threshold,
+                orb,
+                nick,
+                role,
+                base_urls,
+                cf,
             )
             .await
             {

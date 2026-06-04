@@ -113,7 +113,11 @@ fn theme_variables() -> Object {
     set_token(&vars, "noteTextColor", "--text");
     set_token(&vars, "activationBkgColor", "--accent-soft");
     if let Some(font) = css_token("--font-sans").or_else(|| css_token("font-family")) {
-        let _ = Reflect::set(&vars, &JsValue::from_str("fontFamily"), &JsValue::from_str(&font));
+        let _ = Reflect::set(
+            &vars,
+            &JsValue::from_str("fontFamily"),
+            &JsValue::from_str(&font),
+        );
     }
     vars
 }
@@ -164,11 +168,7 @@ pub async fn render_mermaid_to_svg(id: &str, source: &str) -> Result<String, Str
     let render = Reflect::get(&mermaid, &JsValue::from_str("render")).map_err(|_| "no render")?;
     let render: Function = render.dyn_into().map_err(|_| "render not callable")?;
     let promise = render
-        .call2(
-            &mermaid,
-            &JsValue::from_str(id),
-            &JsValue::from_str(source),
-        )
+        .call2(&mermaid, &JsValue::from_str(id), &JsValue::from_str(source))
         .map_err(|e| format!("mermaid.render: {e:?}"))?;
     let promise: js_sys::Promise = promise
         .dyn_into()
@@ -176,9 +176,10 @@ pub async fn render_mermaid_to_svg(id: &str, source: &str) -> Result<String, Str
     let result = wasm_bindgen_futures::JsFuture::from(promise)
         .await
         .map_err(|e| format!("mermaid.render awaited: {e:?}"))?;
-    let svg = Reflect::get(&result, &JsValue::from_str("svg"))
-        .map_err(|_| "render result has no svg")?;
-    svg.as_string().ok_or_else(|| "render svg not a string".into())
+    let svg =
+        Reflect::get(&result, &JsValue::from_str("svg")).map_err(|_| "render result has no svg")?;
+    svg.as_string()
+        .ok_or_else(|| "render svg not a string".into())
 }
 
 /// Runs Mermaid on the supplied nodes. Nodes must contain raw graph text as

@@ -37,7 +37,11 @@ pub(crate) fn ConfigurationSection() -> impl IntoView {
         image_quality_levels()
             .into_iter()
             .map(|q| {
-                PickerOption::lucide(quality_id(q), image_quality_label(&i18n, q), image_quality_icon(q))
+                PickerOption::lucide(
+                    quality_id(q),
+                    image_quality_label(&i18n, q),
+                    image_quality_icon(q),
+                )
             })
             .collect::<Vec<_>>()
     });

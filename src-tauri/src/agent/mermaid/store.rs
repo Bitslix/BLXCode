@@ -273,9 +273,17 @@ mod tests {
     #[test]
     fn rejects_path_traversal_id() {
         let ws = tmp_ws();
-        assert!(
-            create_diagram(&ws, "p", "x", "c", "k", None, Some("../evil".into()), None, None)
-                .is_err()
-        );
+        assert!(create_diagram(
+            &ws,
+            "p",
+            "x",
+            "c",
+            "k",
+            None,
+            Some("../evil".into()),
+            None,
+            None
+        )
+        .is_err());
     }
 }

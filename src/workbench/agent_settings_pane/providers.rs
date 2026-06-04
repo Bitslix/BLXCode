@@ -52,14 +52,20 @@ pub(crate) fn ProvidersSection() -> impl IntoView {
         AGENT_PROVIDERS
             .iter()
             .copied()
-            .map(|p| PickerOption::brand(p.as_str(), provider_label(&i18n, p), provider_icon_url(p)))
+            .map(|p| {
+                PickerOption::brand(p.as_str(), provider_label(&i18n, p), provider_icon_url(p))
+            })
             .collect::<Vec<_>>()
     });
     let image_options = Signal::derive(move || {
         image_providers()
             .into_iter()
             .map(|p| {
-                PickerOption::brand(p.as_str(), image_provider_label(&i18n, p), image_provider_icon_url(p))
+                PickerOption::brand(
+                    p.as_str(),
+                    image_provider_label(&i18n, p),
+                    image_provider_icon_url(p),
+                )
             })
             .collect::<Vec<_>>()
     });
@@ -67,7 +73,11 @@ pub(crate) fn ProvidersSection() -> impl IntoView {
         voice_providers()
             .into_iter()
             .map(|p| {
-                PickerOption::brand(p.as_str(), voice_provider_label(&i18n, p), voice_provider_icon_url(p))
+                PickerOption::brand(
+                    p.as_str(),
+                    voice_provider_label(&i18n, p),
+                    voice_provider_icon_url(p),
+                )
             })
             .collect::<Vec<_>>()
     });

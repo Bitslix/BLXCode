@@ -5327,7 +5327,9 @@ mod center_tab_tests {
         let mode_tabs: Vec<_> = ws
             .center_tabs
             .iter()
-            .filter(|tab| is_workspace_mode_tab_kind(&tab.kind) || tab.id == CENTER_TERMINALS_TAB_ID)
+            .filter(|tab| {
+                is_workspace_mode_tab_kind(&tab.kind) || tab.id == CENTER_TERMINALS_TAB_ID
+            })
             .collect();
         assert_eq!(mode_tabs.len(), 1, "duplicate mode tabs must be collapsed");
         assert_eq!(mode_tabs[0].id, CENTER_TERMINALS_TAB_ID);

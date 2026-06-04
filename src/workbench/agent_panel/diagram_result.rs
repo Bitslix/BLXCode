@@ -122,11 +122,7 @@ fn DiagramResultCards(
             let open_title = group_title.clone();
             let on_open = move |_| {
                 if let Some(ws_id) = workspace_id {
-                    wb_open.open_center_diagram_group(
-                        ws_id,
-                        open_title.clone(),
-                        group.get_value(),
-                    );
+                    wb_open.open_center_diagram_group(ws_id, open_title.clone(), group.get_value());
                 }
             };
 

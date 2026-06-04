@@ -70,7 +70,11 @@ pub fn diagram_first_seen(id: &str) -> Option<f64> {
 }
 
 fn cache_get(theme: &str, code: &str) -> Option<String> {
-    SVG_CACHE.with(|c| c.borrow().get(&(theme.to_owned(), code.to_owned())).cloned())
+    SVG_CACHE.with(|c| {
+        c.borrow()
+            .get(&(theme.to_owned(), code.to_owned()))
+            .cloned()
+    })
 }
 
 fn cache_put(theme: &str, code: &str, html: String) {
