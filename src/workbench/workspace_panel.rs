@@ -129,7 +129,6 @@ struct SwarmDragState {
 struct TerminalRenderSlot {
     id: u64,
     index: usize,
-    agent_slug: String,
 }
 
 #[component]
@@ -558,7 +557,6 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                 children=move |slot| {
                                     let terminal_id = slot.id;
                                     let index = slot.index;
-                                    let slug = slot.agent_slug;
                                     let cwd = workspace.get_untracked().map(|w| w.cwd).unwrap_or_default();
                                     let on_full_size = Callback::new(move |()| {
                                         full_size_terminal.update(|current| {
@@ -576,7 +574,6 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                             slot_id=terminal_id
                                             index=index
                                             cwd=cwd
-                                            agent_slug=slug
                                             slot_drag_enabled=slot_drag_enabled
                                             is_workspace_active=Signal::derive(move || {
                                                 wb.active_id().get() == Some(workspace_id)
@@ -1279,7 +1276,6 @@ fn TerminalSlotSurface(
     slot_id: u64,
     index: usize,
     cwd: String,
-    agent_slug: String,
     slot_drag_enabled: Memo<bool>,
     is_workspace_active: Signal<bool>,
     hidden: Signal<bool>,
@@ -1513,7 +1509,16 @@ fn TerminalSlotSurface(
                     }
                     key=|(loc, pane_id)| format!("{}-{pane_id}", loc.as_str())
                     children=move |(loc, pane_id)| {
-                        let slug = agent_slug.clone();
+                        let pane_agent = wb
+                            .workspaces()
+                            .with_untracked(|workspaces| {
+                                workspaces
+                                    .iter()
+                                    .find(|workspace| workspace.id == workspace_id)
+                                    .and_then(|workspace| workspace.pane_agent_state(slot_id, pane_id))
+                            })
+                            .unwrap_or_default();
+                        let slug = pane_agent.agent_label.clone();
                         let pane_index = pane_ids
                             .get_untracked()
                             .iter()
@@ -1594,7 +1599,7 @@ fn TerminalSlotSurface(
                         let popout_key = terminal_key.clone();
                         let popout_label = Signal::derive(move || wb.terminal_popout_label(&popout_key));
                         let cwd_store = StoredValue::new(cwd.clone());
-                        let agent_slug_store = StoredValue::new(agent_slug.clone());
+                        let agent_slug_store = StoredValue::new(slug.clone());
                         let title_store = StoredValue::new(title.clone());
                         let terminal_key_store = StoredValue::new(terminal_key.clone());
                         view! {
@@ -2497,11 +2502,6 @@ fn terminal_slots(workspace: &WorkspaceEntry) -> Vec<TerminalRenderSlot> {
         .map(|(index, id)| TerminalRenderSlot {
             id,
             index,
-            agent_slug: workspace
-                .slot_agent_labels
-                .get(index)
-                .cloned()
-                .unwrap_or_default(),
         })
         .collect()
 }
