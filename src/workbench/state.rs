@@ -6611,6 +6611,50 @@ mod terminal_slot_tests {
         assert_eq!(target.pane_agents[1].agent_effort, "effort0");
     }
 
+    #[test]
+    fn move_into_split_rejects_invalid_inputs() {
+        let mut ws = mk_slots(2);
+        assert!(move_workspace_slot_into_split(
+            &mut ws,
+            1,
+            1,
+            TerminalSlotDropAction::SplitRight,
+        )
+        .is_err());
+        assert!(move_workspace_slot_into_split(
+            &mut ws,
+            99,
+            2,
+            TerminalSlotDropAction::SplitRight,
+        )
+        .is_err());
+        assert!(move_workspace_slot_into_split(
+            &mut ws,
+            1,
+            99,
+            TerminalSlotDropAction::SplitRight,
+        )
+        .is_err());
+        assert!(move_workspace_slot_into_split(&mut ws, 1, 2, TerminalSlotDropAction::Swap)
+            .is_err());
+    }
+
+    #[test]
+    fn move_into_split_rejects_multi_pane_source() {
+        let mut ws = mk_slots(2);
+        ws.slot_pane_states[0].pane_ids.push(1002);
+
+        let result = move_workspace_slot_into_split(
+            &mut ws,
+            1,
+            2,
+            TerminalSlotDropAction::SplitBottom,
+        );
+
+        assert!(result.is_err());
+        assert_eq!(ws.slot_ids, vec![1, 2]);
+    }
+
     fn mk_slots_with_id(id: u64, n: u8) -> WorkspaceEntry {
         let mut ws = mk_slots(n);
         ws.id = id;
