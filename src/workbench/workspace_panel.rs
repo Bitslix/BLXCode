@@ -630,6 +630,19 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                                     index,
                                                 )
                                             })
+                                            grid_style=Signal::derive(move || {
+                                                workspace
+                                                    .get()
+                                                    .map(|workspace| {
+                                                        terminal_slot_grid_item_style(
+                                                            index,
+                                                            workspace.slot_ids.len(),
+                                                            workspace.grid_rows as usize,
+                                                            workspace.grid_cols as usize,
+                                                        )
+                                                    })
+                                                    .unwrap_or_default()
+                                            })
                                             canvas_port_active=Signal::derive(move || {
                                                 canvas_port_start.get().map(|p| canvas_port_identity(&p))
                                             })
@@ -1314,6 +1327,7 @@ fn TerminalSlotSurface(
     on_full_size: Callback<(), ()>,
     canvas_mode: Signal<bool>,
     canvas_style: Signal<String>,
+    grid_style: Signal<String>,
     canvas_port_active: Signal<Option<String>>,
     on_canvas_port: Callback<CanvasPortRef>,
     on_canvas_drag_start: Callback<MouseEvent>,
@@ -1442,7 +1456,7 @@ fn TerminalSlotSurface(
                 if canvas_mode.get() {
                     canvas_style.get()
                 } else {
-                    String::new()
+                    grid_style.get()
                 }
             }
             on:dragenter=move |ev| {
@@ -2633,15 +2647,47 @@ fn terminal_slots(workspace: &WorkspaceEntry) -> Vec<TerminalRenderSlot> {
         .collect()
 }
 
+fn terminal_slot_grid_item_style(
+    index: usize,
+    slot_count: usize,
+    rows: usize,
+    cols: usize,
+) -> String {
+    if rows > 1 && cols > 1 && slot_count % cols == 1 && index + 1 == slot_count {
+        "grid-column:1 / -1;".into()
+    } else {
+        String::new()
+    }
+}
+
 #[cfg(test)]
 mod swarm_preview_tests {
-    use super::strip_ansi_for_preview;
+    use super::{strip_ansi_for_preview, terminal_slot_grid_item_style};
 
     #[test]
     fn strips_terminal_escape_sequences_for_preview() {
         let raw = "\u{1b}[1mClaude\u{1b}[0m\r\n\u{1b}]0;title\u{7}ready\u{1b}[38;2;1;2;3m!";
 
         assert_eq!(strip_ansi_for_preview(raw), "Claude\nready!");
+    }
+
+    #[test]
+    fn terminal_grid_spans_single_item_in_final_row() {
+        assert_eq!(
+            terminal_slot_grid_item_style(2, 3, 2, 2),
+            "grid-column:1 / -1;"
+        );
+        assert_eq!(
+            terminal_slot_grid_item_style(6, 7, 3, 3),
+            "grid-column:1 / -1;"
+        );
+    }
+
+    #[test]
+    fn terminal_grid_does_not_span_full_or_multi_item_rows() {
+        assert_eq!(terminal_slot_grid_item_style(1, 2, 1, 2), "");
+        assert_eq!(terminal_slot_grid_item_style(2, 4, 2, 2), "");
+        assert_eq!(terminal_slot_grid_item_style(3, 5, 2, 3), "");
     }
 }
 
