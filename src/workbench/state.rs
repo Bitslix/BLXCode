@@ -3758,13 +3758,6 @@ impl WorkbenchService {
         });
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-        dead_code,
-        reason = "wired by the follow-up terminal drop dispatch task"
-        )
-    )]
     pub fn move_terminal_slot_into_split(
         &self,
         workspace_id: u64,

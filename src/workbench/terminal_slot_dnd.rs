@@ -28,13 +28,6 @@ pub enum TerminalSlotDropAction {
 }
 
 #[must_use]
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "drop geometry is wired into dragover dispatch by the follow-up task"
-    )
-)]
 pub fn terminal_slot_drop_action_from_normalized(x: f64, y: f64) -> TerminalSlotDropAction {
     if !x.is_finite() || !y.is_finite() {
         return TerminalSlotDropAction::Swap;

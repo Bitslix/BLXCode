@@ -28,8 +28,9 @@ use crate::workbench::terminal_glue::{
     terminal_observe_workspace_grid, terminal_unobserve_workspace_grid,
 };
 use crate::workbench::terminal_slot_dnd::{
-    drag_event_data_transfer, is_terminal_drag, read_drag_payload, GhostPos,
-    TerminalSlotDragService, TerminalSlotDropAction,
+    drag_event_data_transfer, is_terminal_drag, read_drag_payload,
+    terminal_slot_drop_action_from_normalized, GhostPos, TerminalSlotDragService,
+    TerminalSlotDropAction,
 };
 use crate::workbench::toast::ToastService;
 use crate::workbench::{WorkbenchService, WorkspaceKanban};
@@ -1290,6 +1291,7 @@ fn TerminalSlotSurface(
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
+    let toast = expect_context::<ToastService>();
     let slot_dnd = expect_context::<TerminalSlotDragService>();
     // Hydrate split layout from persisted workspace state so a restart
     // preserves the user's exact pane grid.
@@ -1403,6 +1405,23 @@ fn TerminalSlotSurface(
                     let _ = dt.set_drop_effect("move");
                 }
                 slot_dnd.set_overlay_pos_from_event(de);
+                let action = de
+                    .current_target()
+                    .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                    .map(|target| {
+                        let rect = target.get_bounding_client_rect();
+                        let width = rect.width();
+                        let height = rect.height();
+                        if width <= 0.0 || height <= 0.0 {
+                            TerminalSlotDropAction::Swap
+                        } else {
+                            terminal_slot_drop_action_from_normalized(
+                                (de.client_x() as f64 - rect.left()) / width,
+                                (de.client_y() as f64 - rect.top()) / height,
+                            )
+                        }
+                    })
+                    .unwrap_or(TerminalSlotDropAction::Swap);
                 let (rows, cols) = wb.workspaces().with_untracked(|list| {
                     list.iter()
                         .find(|w| w.id == workspace_id)
@@ -1411,7 +1430,7 @@ fn TerminalSlotSurface(
                 });
                 slot_dnd.ghost.set(Some(GhostPos {
                     target_slot_id: slot_id,
-                    action: TerminalSlotDropAction::Swap,
+                    action,
                     rows,
                     cols,
                 }));
@@ -1449,7 +1468,31 @@ fn TerminalSlotSurface(
                     });
                 if let Some(payload) = payload {
                     if payload.workspace_id == workspace_id && payload.slot_id != slot_id {
-                        wb.swap_terminal_slots(workspace_id, payload.slot_id, slot_id);
+                        let action = slot_dnd
+                            .ghost
+                            .get_untracked()
+                            .filter(|ghost| ghost.target_slot_id == slot_id)
+                            .map(|ghost| ghost.action)
+                            .unwrap_or(TerminalSlotDropAction::Swap);
+                        match action {
+                            TerminalSlotDropAction::Swap => {
+                                wb.swap_terminal_slots(workspace_id, payload.slot_id, slot_id);
+                            }
+                            TerminalSlotDropAction::SplitTop
+                            | TerminalSlotDropAction::SplitBottom
+                            | TerminalSlotDropAction::SplitLeft
+                            | TerminalSlotDropAction::SplitRight => {
+                                if let Err(err) = wb.move_terminal_slot_into_split(
+                                    workspace_id,
+                                    payload.slot_id,
+                                    slot_id,
+                                    action,
+                                ) {
+                                    let template = i18n.tr(I18nKey::WsTermTransferFailed)();
+                                    toast.error(template.replace("{error}", &err));
+                                }
+                            }
+                        }
                     }
                 }
                 slot_dnd.clear();
