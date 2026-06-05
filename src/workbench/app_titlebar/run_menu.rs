@@ -9,6 +9,7 @@ use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
+use std::collections::{BTreeMap, BTreeSet};
 use wasm_bindgen::JsCast;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -19,6 +20,13 @@ struct ActiveRunScope {
     connection_id: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RunCommandGroup {
+    id: String,
+    label: String,
+    commands: Vec<RunCommand>,
+}
+
 #[component]
 pub fn RunMenu() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
@@ -27,6 +35,7 @@ pub fn RunMenu() -> impl IntoView {
     let loading = RwSignal::new(false);
     let error = RwSignal::new(None::<String>);
     let commands = RwSignal::new(Vec::<RunCommand>::new());
+    let collapsed_groups = RwSignal::new(BTreeSet::<String>::new());
 
     let active_scope = Memo::new(move |_| {
         let active = wb.active_id().get()?;
@@ -74,6 +83,7 @@ pub fn RunMenu() -> impl IntoView {
     let refresh = move || {
         let Some(scope) = active_scope.get_untracked() else {
             commands.set(Vec::new());
+            collapsed_groups.set(BTreeSet::new());
             return;
         };
         loading.set(true);
@@ -81,11 +91,13 @@ pub fn RunMenu() -> impl IntoView {
         spawn_local(async move {
             match run_commands_discover(scope.cwd, scope.connection_id).await {
                 Ok(next) => {
+                    collapsed_groups.set(default_collapsed_run_groups(&next));
                     commands.set(next);
                     error.set(None);
                 }
                 Err(err) => {
                     commands.set(Vec::new());
+                    collapsed_groups.set(BTreeSet::new());
                     error.set(Some(err));
                 }
             }
@@ -177,28 +189,79 @@ pub fn RunMenu() -> impl IntoView {
                     >
                         <div class="app-titlebar__run-list">
                             <For
-                                each=move || commands.get()
-                                key=|command| command.id.clone()
-                                children=move |command| {
-                                    let cmd_for_launch = command.clone();
-                                    let kind_key = run_kind_key(command.kind.clone());
+                                each=move || group_run_commands(commands.get())
+                                key=|group| group.id.clone()
+                                children=move |group| {
+                                    let group_id = group.id.clone();
+                                    let group_label = group.label.clone();
+                                    let group_aria = group_label.clone();
+                                    let group_for_toggle = group_id.clone();
+                                    let group_for_icon = group_id.clone();
+                                    let group_for_items = group_id.clone();
+                                    let group_commands = group.commands.clone();
                                     view! {
-                                        <button
-                                            type="button"
-                                            class="app-titlebar__menu-item app-titlebar__run-item"
-                                            role="menuitem"
-                                            title=command.command.clone()
-                                            on:click=move |_| launch(cmd_for_launch.clone())
-                                        >
-                                            <LxIcon icon=run_kind_icon(&command.kind) width="0.95rem" height="0.95rem" />
-                                            <span class="app-titlebar__menu-item-label app-titlebar__run-label">
-                                                <span>{command.label.clone()}</span>
-                                                <span class="app-titlebar__menu-item-workspace">{command_display_path(&command)}</span>
-                                            </span>
-                                            <span class="app-titlebar__run-kind">
-                                                {move || i18n.tr(kind_key)()}
-                                            </span>
-                                        </button>
+                                        <div class="app-titlebar__run-group" role="group" aria-label=group_aria>
+                                            <button
+                                                type="button"
+                                                class="app-titlebar__run-group-head"
+                                                aria-expanded=move || (!collapsed_groups.with(|groups| groups.contains(&group_id))).to_string()
+                                                on:click=move |ev| {
+                                                    ev.stop_propagation();
+                                                    collapsed_groups.update(|groups| {
+                                                        if !groups.insert(group_for_toggle.clone()) {
+                                                            groups.remove(&group_for_toggle);
+                                                        }
+                                                    });
+                                                }
+                                            >
+                                                <LxIcon
+                                                    icon=move || {
+                                                        if collapsed_groups.with(|groups| groups.contains(&group_for_icon)) {
+                                                            icondata::LuChevronRight
+                                                        } else {
+                                                            icondata::LuChevronDown
+                                                        }
+                                                    }
+                                                    width="0.78rem"
+                                                    height="0.78rem"
+                                                />
+                                                <span>{group_label}</span>
+                                                <span class="app-titlebar__run-group-count">{group.commands.len()}</span>
+                                            </button>
+                                            <div
+                                                class="app-titlebar__run-group-items"
+                                                class:app-titlebar__run-group-items--collapsed=move || {
+                                                    collapsed_groups.with(|groups| groups.contains(&group_for_items))
+                                                }
+                                            >
+                                                <For
+                                                    each=move || group_commands.clone()
+                                                    key=|command| command.id.clone()
+                                                    children=move |command| {
+                                                        let cmd_for_launch = command.clone();
+                                                        let kind_key = run_kind_key(command.kind.clone());
+                                                        view! {
+                                                            <button
+                                                                type="button"
+                                                                class="app-titlebar__menu-item app-titlebar__run-item"
+                                                                role="menuitem"
+                                                                title=command.command.clone()
+                                                                on:click=move |_| launch(cmd_for_launch.clone())
+                                                            >
+                                                                <LxIcon icon=run_kind_icon(&command.kind) width="0.95rem" height="0.95rem" />
+                                                                <span class="app-titlebar__menu-item-label app-titlebar__run-label">
+                                                                    <span>{command.label.clone()}</span>
+                                                                    <span class="app-titlebar__menu-item-workspace">{command_display_path(&command)}</span>
+                                                                </span>
+                                                                <span class="app-titlebar__run-kind">
+                                                                    {move || i18n.tr(kind_key)()}
+                                                                </span>
+                                                            </button>
+                                                        }
+                                                    }
+                                                />
+                                            </div>
+                                        </div>
                                     }
                                 }
                             />
@@ -207,6 +270,53 @@ pub fn RunMenu() -> impl IntoView {
                 </div>
             </Show>
         </div>
+    }
+}
+
+fn group_run_commands(commands: Vec<RunCommand>) -> Vec<RunCommandGroup> {
+    let mut indexes = BTreeMap::<String, usize>::new();
+    let mut groups = Vec::<RunCommandGroup>::new();
+    for command in commands {
+        let (id, label) = run_command_group_key(&command);
+        if let Some(index) = indexes.get(&id).copied() {
+            groups[index].commands.push(command);
+        } else {
+            indexes.insert(id.clone(), groups.len());
+            groups.push(RunCommandGroup {
+                id,
+                label,
+                commands: vec![command],
+            });
+        }
+    }
+    groups
+}
+
+fn default_collapsed_run_groups(commands: &[RunCommand]) -> BTreeSet<String> {
+    group_run_commands(commands.to_vec())
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, group)| (index > 0).then_some(group.id))
+        .collect()
+}
+
+fn run_command_group_key(command: &RunCommand) -> (String, String) {
+    match command.source.detector_id.as_str() {
+        "node-scripts" => {
+            let manager = command
+                .label
+                .split_whitespace()
+                .next()
+                .filter(|value| matches!(*value, "npm" | "pnpm" | "yarn" | "bun"))
+                .unwrap_or("scripts");
+            (format!("node-scripts:{manager}"), manager.into())
+        }
+        "cargo" => ("cargo".into(), "cargo".into()),
+        "shell-scripts" => ("scripts".into(), "scripts".into()),
+        "go-module" => ("go".into(), "go".into()),
+        "c-cpp-build" => ("c-cpp".into(), "cmake / make".into()),
+        "direct-runtime" => ("runtime".into(), "runtime".into()),
+        other => (format!("detector:{other}"), other.replace('-', " ")),
     }
 }
 

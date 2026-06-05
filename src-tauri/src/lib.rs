@@ -170,6 +170,11 @@ pub fn run() {
             heartbeat::ensure_scheduler_started(app.handle().clone());
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+                popout::notify_popout_closed(window);
+            }
+        })
         .manage(AgentEngineRegistry::new())
         .manage(BlxUpdaterState::default())
         .manage(PlanMigrationState::default())

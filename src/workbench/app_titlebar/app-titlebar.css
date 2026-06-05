@@ -1044,9 +1044,71 @@
 .app-titlebar__run-list {
   display: flex;
   flex-direction: column;
-  gap: 0.12rem;
+  gap: 0.28rem;
   max-height: 340px;
   overflow-y: auto;
+}
+
+.app-titlebar__run-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.app-titlebar__run-group + .app-titlebar__run-group {
+  padding-top: 0.18rem;
+  border-top: 1px solid var(--border);
+}
+
+.app-titlebar__run-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  width: 100%;
+  padding: 0.2rem 0.45rem 0.12rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.app-titlebar__run-group-head:hover {
+  background: var(--overlay-1);
+  color: var(--text-muted);
+}
+
+.app-titlebar__run-group-head svg {
+  flex: 0 0 auto;
+}
+
+.app-titlebar__run-group-count {
+  margin-left: auto;
+  min-width: 1.2rem;
+  padding: 0.03rem 0.28rem;
+  border-radius: var(--radius-pill);
+  background: var(--overlay-1);
+  color: var(--text-faint);
+  font-size: 0.58rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.app-titlebar__run-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.app-titlebar__run-group-items--collapsed {
+  display: none;
 }
 
 .app-titlebar__run-item {

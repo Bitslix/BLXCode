@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "workspaceRoot": "/home/iptoux/Development/blxcode",
+  "workspaceRoot": "C:\\Users\\quork/Entwicklung/BLXCode",
   "planSectionOrder": [
     "blocked",
     "in_progress",
@@ -21,11 +21,11 @@
   "collapsedTaskLanes": [],
   "planOrder": {
     "agent-plan-status-lifecycle/plan.md": 0,
-    "leptos-to-typescript-migration/plan.md": 7,
-    "performance-optimization/plan.md": 8,
-    "provider-grouped-model-picker-logos/plan.md": 10,
-    "russh-transport-refactor/plan.md": 11,
-    "security-hardening/plan.md": 12
+    "leptos-to-typescript-migration/plan.md": 1,
+    "performance-optimization/plan.md": 2,
+    "russh-transport-refactor/plan.md": 3,
+    "security-hardening/plan.md": 4,
+    "window-popout/plan.md": 5
   },
   "taskOrder": {},
   "filters": {
@@ -34,5 +34,5 @@
     "showCancelled": true,
     "activeOnly": false
   },
-  "updatedAt": 1780528221
+  "updatedAt": 1780631518
 }

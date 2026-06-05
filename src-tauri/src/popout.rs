@@ -5,9 +5,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 const LABEL_PREFIX: &str = "popout";
+pub const POPOUT_CLOSED_EVENT: &str = "popout_closed";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -38,6 +39,12 @@ pub enum PopoutPayload {
         rel_path: String,
         staged: bool,
     },
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PopoutClosedPayload {
+    label: String,
 }
 
 impl PopoutPayload {
@@ -144,4 +151,18 @@ pub fn popout_close_current(window: tauri::WebviewWindow) -> Result<(), String> 
         return Err("not a popout window".into());
     }
     window.close().map_err(|e| e.to_string())
+}
+
+pub fn notify_popout_closed(window: &tauri::Window) {
+    let label = window.label();
+    if !label.starts_with(LABEL_PREFIX) {
+        return;
+    }
+    let _ = window.emit_to(
+        "main",
+        POPOUT_CLOSED_EVENT,
+        PopoutClosedPayload {
+            label: label.to_string(),
+        },
+    );
 }

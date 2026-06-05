@@ -1222,6 +1222,18 @@ pub async fn popout_close_current() -> Result<(), String> {
     invoke_unit_js("popout_close_current", JsValue::UNDEFINED).await
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PopoutClosedPayload {
+    pub label: String,
+}
+
+pub fn listen_popout_closed(
+    callback: impl FnMut(PopoutClosedPayload) + 'static,
+) -> Option<TauriEventListener> {
+    listen_tauri_event::<PopoutClosedPayload>("popout_closed", callback)
+}
+
 // ---------------------------------------------------------------------------
 // Custom title bar — window controls (decorations:false). The privileged
 // min/max/close/fullscreen calls live in the Rust backend; the frontend only

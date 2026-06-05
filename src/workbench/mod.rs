@@ -125,7 +125,7 @@ use crate::open_http::{dom_click_nav_href, DomNavHref};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_settings_get, browser_embedding_kind, harness_ensure_default_sandbox,
-    harness_user_home_dir, is_tauri_shell, skills_rules_bootstrap,
+    harness_user_home_dir, is_tauri_shell, listen_popout_closed, skills_rules_bootstrap,
     workbench_extract_sessions_prefix, workbench_load_state, workbench_merge_sessions_workspace,
     workbench_prune_notifications, workbench_prune_sessions, workbench_save_state,
     workbench_upsert_agent_notification, workspace_agents_layout_status, workspace_ensure_agents,
@@ -306,6 +306,14 @@ pub fn WorkbenchShell() -> impl IntoView {
     Effect::new(move |_| {
         crate::app_log::info("workbench", "mounted", serde_json::json!({}));
     });
+
+    let popout_closed_listener = SendWrapper::new(listen_popout_closed({
+        let wb = wb;
+        move |payload| {
+            wb.return_terminal_popout_by_label(&payload.label);
+        }
+    }));
+    on_cleanup(move || drop(popout_closed_listener));
 
     let ptt_bus = ptt_runtime::PttBus::default();
     provide_context(ptt_bus);
