@@ -88,6 +88,34 @@ fn accepts_slot_drop(
     }
 }
 
+fn terminal_slot_drop_action_label_key(action: TerminalSlotDropAction) -> I18nKey {
+    match action {
+        TerminalSlotDropAction::Swap => I18nKey::WsTermDropHere,
+        TerminalSlotDropAction::SplitTop => I18nKey::WsTermDropSplitTop,
+        TerminalSlotDropAction::SplitBottom => I18nKey::WsTermDropSplitBottom,
+        TerminalSlotDropAction::SplitLeft => I18nKey::WsTermDropSplitLeft,
+        TerminalSlotDropAction::SplitRight => I18nKey::WsTermDropSplitRight,
+    }
+}
+
+fn terminal_slot_drop_hint_class(action: TerminalSlotDropAction) -> &'static str {
+    match action {
+        TerminalSlotDropAction::Swap => "ws-term-slot__drop-hint ws-term-slot__drop-hint--swap",
+        TerminalSlotDropAction::SplitTop => {
+            "ws-term-slot__drop-hint ws-term-slot__drop-hint--split-top"
+        }
+        TerminalSlotDropAction::SplitBottom => {
+            "ws-term-slot__drop-hint ws-term-slot__drop-hint--split-bottom"
+        }
+        TerminalSlotDropAction::SplitLeft => {
+            "ws-term-slot__drop-hint ws-term-slot__drop-hint--split-left"
+        }
+        TerminalSlotDropAction::SplitRight => {
+            "ws-term-slot__drop-hint ws-term-slot__drop-hint--split-right"
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 enum GridResizeAxis {
     Row,
@@ -1755,9 +1783,17 @@ fn TerminalSlotSurface(
                 />
             </div>
             <Show when=move || is_drop_over.get()>
-                <div class="ws-term-slot__drop-hint" aria-hidden="true">
+                <div class=move || {
+                    terminal_slot_drop_hint_class(
+                        drop_action.get().unwrap_or(TerminalSlotDropAction::Swap),
+                    )
+                } aria-hidden="true">
                     <LxIcon icon=icondata::LuArrowLeftRight width="0.9rem" height="0.9rem" />
-                    <span>{move || i18n.tr(I18nKey::WsTermDropHere)()}</span>
+                    <span>{move || {
+                        i18n.tr(terminal_slot_drop_action_label_key(
+                            drop_action.get().unwrap_or(TerminalSlotDropAction::Swap),
+                        ))()
+                    }}</span>
                 </div>
             </Show>
         </div>

@@ -8985,9 +8985,9 @@ button {
 
 .ws-term-slot__drop-hint {
   position: absolute;
-  bottom: 8px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -9002,6 +9002,22 @@ button {
   pointer-events: none;
   box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent);
   z-index: 6;
+}
+
+.ws-term-slot__drop-hint--split-top {
+  top: 25%;
+}
+
+.ws-term-slot__drop-hint--split-bottom {
+  top: 75%;
+}
+
+.ws-term-slot__drop-hint--split-left {
+  left: 25%;
+}
+
+.ws-term-slot__drop-hint--split-right {
+  left: 75%;
 }
 
 /* Cursor-following preview card (EB's DragOverlay equivalent). Always
