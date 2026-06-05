@@ -153,7 +153,8 @@ pub(crate) fn ReleaseNotesContent(data: PostUpdateReleaseNotesResponse) -> impl 
     let version = data.version.clone();
     let title = data.title.clone();
     let summary = data.summary.clone();
-    let sections = data.sections.clone();
+    let sections: Vec<_> = data.sections.clone().into_iter().enumerate().collect();
+    let open_section = RwSignal::new(0usize);
     let _source = data.source.clone();
 
     view! {
@@ -173,8 +174,16 @@ pub(crate) fn ReleaseNotesContent(data: PostUpdateReleaseNotesResponse) -> impl 
         <div class="post-update-section-list">
             <For
                 each=move || sections.clone()
-                key=|section| section.title.clone()
-                children=move |section| view! { <PostUpdateSection section=section /> }
+                key=|(idx, section)| format!("{idx}:{}", section.title)
+                children=move |(idx, section)| {
+                    view! {
+                        <PostUpdateSection
+                            section=section
+                            is_open=Signal::derive(move || open_section.get() == idx)
+                            on_toggle=Callback::new(move |_| open_section.set(idx))
+                        />
+                    }
+                }
             />
         </div>
     }
@@ -201,26 +210,44 @@ pub(crate) fn ReleaseNotesLoading(loading: Signal<bool>) -> impl IntoView {
 }
 
 #[component]
-fn PostUpdateSection(section: PostUpdateReleaseNotesSection) -> impl IntoView {
+fn PostUpdateSection(
+    section: PostUpdateReleaseNotesSection,
+    is_open: Signal<bool>,
+    #[prop(into)] on_toggle: Callback<()>,
+) -> impl IntoView {
     let variant = section_variant(&section.title);
     let title = section.title.clone();
+    let icon_title = title.clone();
     let items = section.items.clone();
 
     view! {
-        <section class=format!("post-update-section post-update-section--{variant}")>
-            <div class="post-update-section__head">
+        <section
+            class=format!("post-update-section post-update-section--{variant}")
+            class:post-update-section--open=move || is_open.get()
+        >
+            <button
+                type="button"
+                class="post-update-section__head"
+                aria-expanded=move || is_open.get().to_string()
+                on:click=move |_| on_toggle.run(())
+            >
                 <span class="post-update-section__icon" aria-hidden="true">
-                    <LxIcon icon=section_icon(&title) width="0.95rem" height="0.95rem" />
+                    <LxIcon icon=section_icon(&icon_title) width="0.95rem" height="0.95rem" />
                 </span>
                 <h3>{title}</h3>
+                <span class="post-update-section__chevron" aria-hidden="true">
+                    <LxIcon icon=icondata::LuChevronDown width="0.95rem" height="0.95rem" />
+                </span>
+            </button>
+            <div class="post-update-section__body" aria-hidden=move || (!is_open.get()).to_string()>
+                <ul class="post-update-items">
+                    <For
+                        each=move || items.clone()
+                        key=|item| format!("{}:{}", item.title.clone().unwrap_or_default(), item.body)
+                        children=move |item| view! { <PostUpdateItem item=item /> }
+                    />
+                </ul>
             </div>
-            <ul class="post-update-items">
-                <For
-                    each=move || items.clone()
-                    key=|item| format!("{}:{}", item.title.clone().unwrap_or_default(), item.body)
-                    children=move |item| view! { <PostUpdateItem item=item /> }
-                />
-            </ul>
         </section>
     }
 }
