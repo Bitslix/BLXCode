@@ -217,7 +217,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 - [x] `launch-pane-agent` - Ensure adopted and freshly spawned panes resolve the correct model and effort from terminal key
 - [x] `notification-pane-agent` - Update notification liveness and ack helpers to understand pane-level agent metadata
 - [x] `live-keys-pane-meta` - Ensure live terminal keys and pruning still include every pane after split moves
-- [ ] `manual-split-pane-meta` - Update existing split buttons so manually created panes get deterministic metadata
+- [x] `manual-split-pane-meta` - Update existing split buttons so manually created panes get deterministic metadata
 
 ### P4 Drag UI
 
