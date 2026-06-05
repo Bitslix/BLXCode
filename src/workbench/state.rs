@@ -6787,6 +6787,28 @@ mod terminal_slot_tests {
     }
 
     #[test]
+    fn service_move_terminal_slot_into_split_consumes_adopted_pty_once() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            svc.workspaces.set(vec![mk_slots(2)]);
+            let old_key = "ws-storage:1:1001".to_string();
+            svc.register_pty_session(old_key.clone(), 42);
+
+            let mv = svc
+                .move_terminal_slot_into_split(1, 1, 2, TerminalSlotDropAction::SplitRight)
+                .expect("service split move");
+            let (old, new) = mv.terminal_key_pair();
+
+            assert_eq!(old, old_key);
+            assert_eq!(svc.take_terminal_adopt(&new), Some(42));
+            assert_eq!(svc.take_terminal_adopt(&new), None);
+            assert!(!svc
+                .terminal_move_guards
+                .with_untracked(|m| m.contains_key(&old)));
+        });
+    }
+
+    #[test]
     fn terminal_key_agent_launch_metadata_uses_pane_agent_state() {
         Owner::new().with(|| {
             let svc = test_service();

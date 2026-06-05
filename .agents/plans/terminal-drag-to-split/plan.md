@@ -233,7 +233,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 ### P5 Verification
 
 - [x] `unit-tests-state` - Add pure state tests for all split directions and error cases
-- [ ] `unit-tests-adoption` - Add service-level tests for PTY key move/adoption where practical
+- [x] `unit-tests-adoption` - Add service-level tests for PTY key move/adoption where practical
 - [ ] `regression-tests-existing` - Run existing swap, transfer, key-pair, and popout tests
 - [ ] `cargo-check-workspace` - Run `cargo check --workspace --locked`
 - [ ] `manual-tauri-dnd` - Manually verify swap and all four split drops in Tauri
