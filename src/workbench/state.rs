@@ -1951,9 +1951,12 @@ pub struct TerminalSlotSplitMove {
 }
 
 impl TerminalSlotSplitMove {
-    #[expect(
+    #[cfg_attr(
+        not(test),
+        expect(
         dead_code,
         reason = "used by the follow-up split move adoption task"
+        )
     )]
     #[must_use]
     pub fn terminal_key_pair(&self) -> (String, String) {
@@ -3764,9 +3767,12 @@ impl WorkbenchService {
         });
     }
 
-    #[expect(
+    #[cfg_attr(
+        not(test),
+        expect(
         dead_code,
         reason = "wired by the follow-up terminal drop dispatch task"
+        )
     )]
     pub fn move_terminal_slot_into_split(
         &self,
@@ -6680,6 +6686,23 @@ mod terminal_slot_tests {
 
         assert!(result.is_err());
         assert_eq!(ws.slot_ids, vec![1, 2]);
+    }
+
+    #[test]
+    fn service_move_terminal_slot_into_split_updates_workspace() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            svc.workspaces.set(vec![mk_slots(2)]);
+
+            let mv = svc
+                .move_terminal_slot_into_split(1, 1, 2, TerminalSlotDropAction::SplitRight)
+                .expect("service split move");
+
+            assert_eq!(mv.source_slot_id, 1);
+            let ws = svc.workspaces.with_untracked(|items| items[0].clone());
+            assert_eq!(ws.slot_ids, vec![2]);
+            assert_eq!(ws.slot_pane_states[0].pane_ids.len(), 2);
+        });
     }
 
     fn mk_slots_with_id(id: u64, n: u8) -> WorkspaceEntry {
