@@ -1950,6 +1950,26 @@ pub struct TerminalSlotSplitMove {
     pub agent_slug: String,
 }
 
+impl TerminalSlotSplitMove {
+    #[expect(
+        dead_code,
+        reason = "used by the follow-up split move adoption task"
+    )]
+    #[must_use]
+    pub fn terminal_key_pair(&self) -> (String, String) {
+        (
+            format!(
+                "{}:{}:{}",
+                self.storage_key, self.source_slot_id, self.old_pane_id
+            ),
+            format!(
+                "{}:{}:{}",
+                self.storage_key, self.target_slot_id, self.new_pane_id
+            ),
+        )
+    }
+}
+
 impl TerminalSlotMove {
     /// `(old_terminal_key, new_terminal_key)` pairs derived from the move,
     /// in pane order. Both the PTY/session live registries and the on-disk
@@ -6602,6 +6622,13 @@ mod terminal_slot_tests {
         assert_eq!(mv.target_slot_id, 3);
         assert_eq!(mv.old_pane_id, 1001);
         assert_eq!(mv.agent_slug, "label0");
+        assert_eq!(
+            mv.terminal_key_pair(),
+            (
+                "ws-storage:1:1001".to_string(),
+                format!("ws-storage:3:{}", mv.new_pane_id)
+            )
+        );
 
         let target = ws.slot_pane_states.last().expect("target pane state");
         assert_eq!(target.axis, TerminalSplitAxis::Vertical);
