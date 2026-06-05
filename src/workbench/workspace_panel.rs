@@ -2653,8 +2653,24 @@ fn terminal_slot_grid_item_style(
     rows: usize,
     cols: usize,
 ) -> String {
-    if rows > 1 && cols > 1 && slot_count % cols == 1 && index + 1 == slot_count {
-        "grid-column:1 / -1;".into()
+    if rows <= 1 || cols <= 1 || slot_count == 0 {
+        return String::new();
+    }
+    let final_row_items = slot_count % cols;
+    if final_row_items == 0 {
+        return String::new();
+    }
+    let final_row_start = slot_count - final_row_items;
+    if index < final_row_start {
+        return String::new();
+    }
+
+    let item_in_final_row = index - final_row_start;
+    let base_span = cols / final_row_items;
+    let extra_spans = cols % final_row_items;
+    let span = base_span + usize::from(item_in_final_row < extra_spans);
+    if span > 1 {
+        format!("grid-column:span {span};")
     } else {
         String::new()
     }
@@ -2672,22 +2688,45 @@ mod swarm_preview_tests {
     }
 
     #[test]
-    fn terminal_grid_spans_single_item_in_final_row() {
+    fn terminal_grid_distributes_incomplete_final_row() {
         assert_eq!(
             terminal_slot_grid_item_style(2, 3, 2, 2),
-            "grid-column:1 / -1;"
+            "grid-column:span 2;"
+        );
+        assert_eq!(
+            terminal_slot_grid_item_style(8, 10, 3, 4),
+            "grid-column:span 2;"
+        );
+        assert_eq!(
+            terminal_slot_grid_item_style(9, 10, 3, 4),
+            "grid-column:span 2;"
         );
         assert_eq!(
             terminal_slot_grid_item_style(6, 7, 3, 3),
-            "grid-column:1 / -1;"
+            "grid-column:span 3;"
         );
+    }
+
+    #[test]
+    fn terminal_grid_assigns_extra_span_to_first_final_row_items() {
+        assert_eq!(
+            terminal_slot_grid_item_style(8, 11, 3, 4),
+            "grid-column:span 2;"
+        );
+        assert_eq!(terminal_slot_grid_item_style(9, 11, 3, 4), "");
+        assert_eq!(terminal_slot_grid_item_style(10, 11, 3, 4), "");
+        assert_eq!(
+            terminal_slot_grid_item_style(3, 5, 2, 3),
+            "grid-column:span 2;"
+        );
+        assert_eq!(terminal_slot_grid_item_style(4, 5, 2, 3), "");
     }
 
     #[test]
     fn terminal_grid_does_not_span_full_or_multi_item_rows() {
         assert_eq!(terminal_slot_grid_item_style(1, 2, 1, 2), "");
         assert_eq!(terminal_slot_grid_item_style(2, 4, 2, 2), "");
-        assert_eq!(terminal_slot_grid_item_style(3, 5, 2, 3), "");
+        assert_eq!(terminal_slot_grid_item_style(6, 8, 2, 4), "");
     }
 }
 
