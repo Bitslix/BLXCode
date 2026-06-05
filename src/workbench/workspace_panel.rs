@@ -2672,10 +2672,13 @@ fn terminal_slot_grid_item_style(
     let base_span = cols / final_row_items;
     let extra_spans = cols % final_row_items;
     let span = base_span + usize::from(item_in_final_row < extra_spans);
+    let start = 1
+        + item_in_final_row * base_span
+        + item_in_final_row.min(extra_spans);
     if span > 1 {
-        format!("grid-column:span {span};")
+        format!("grid-row:{rows};grid-column:{start} / span {span};")
     } else {
-        String::new()
+        format!("grid-row:{rows};grid-column:{start};")
     }
 }
 
@@ -2694,19 +2697,19 @@ mod swarm_preview_tests {
     fn terminal_grid_distributes_incomplete_final_row() {
         assert_eq!(
             terminal_slot_grid_item_style(2, 3, 2, 2),
-            "grid-column:span 2;"
+            "grid-row:2;grid-column:1 / span 2;"
         );
         assert_eq!(
             terminal_slot_grid_item_style(8, 10, 3, 4),
-            "grid-column:span 2;"
+            "grid-row:3;grid-column:1 / span 2;"
         );
         assert_eq!(
             terminal_slot_grid_item_style(9, 10, 3, 4),
-            "grid-column:span 2;"
+            "grid-row:3;grid-column:3 / span 2;"
         );
         assert_eq!(
             terminal_slot_grid_item_style(6, 7, 3, 3),
-            "grid-column:span 3;"
+            "grid-row:3;grid-column:1 / span 3;"
         );
     }
 
@@ -2714,15 +2717,40 @@ mod swarm_preview_tests {
     fn terminal_grid_assigns_extra_span_to_first_final_row_items() {
         assert_eq!(
             terminal_slot_grid_item_style(8, 11, 3, 4),
-            "grid-column:span 2;"
+            "grid-row:3;grid-column:1 / span 2;"
         );
-        assert_eq!(terminal_slot_grid_item_style(9, 11, 3, 4), "");
-        assert_eq!(terminal_slot_grid_item_style(10, 11, 3, 4), "");
+        assert_eq!(
+            terminal_slot_grid_item_style(9, 11, 3, 4),
+            "grid-row:3;grid-column:3;"
+        );
+        assert_eq!(
+            terminal_slot_grid_item_style(10, 11, 3, 4),
+            "grid-row:3;grid-column:4;"
+        );
         assert_eq!(
             terminal_slot_grid_item_style(3, 5, 2, 3),
-            "grid-column:span 2;"
+            "grid-row:2;grid-column:1 / span 2;"
         );
-        assert_eq!(terminal_slot_grid_item_style(4, 5, 2, 3), "");
+        assert_eq!(
+            terminal_slot_grid_item_style(4, 5, 2, 3),
+            "grid-row:2;grid-column:3;"
+        );
+    }
+
+    #[test]
+    fn terminal_grid_places_fifteen_slots_without_implicit_rows() {
+        assert_eq!(
+            terminal_slot_grid_item_style(12, 15, 4, 4),
+            "grid-row:4;grid-column:1 / span 2;"
+        );
+        assert_eq!(
+            terminal_slot_grid_item_style(13, 15, 4, 4),
+            "grid-row:4;grid-column:3;"
+        );
+        assert_eq!(
+            terminal_slot_grid_item_style(14, 15, 4, 4),
+            "grid-row:4;grid-column:4;"
+        );
     }
 
     #[test]
