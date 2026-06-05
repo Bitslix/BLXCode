@@ -765,6 +765,34 @@ pub struct SlotPaneAgentState {
     pub agent_effort: String,
 }
 
+impl SlotPaneAgentState {
+    #[must_use]
+    pub fn with_fallback(&self, fallback: &Self) -> Self {
+        Self {
+            agent_label: field_or_fallback(&self.agent_label, &fallback.agent_label),
+            agent_model: field_or_fallback(&self.agent_model, &fallback.agent_model),
+            agent_effort: field_or_fallback(&self.agent_effort, &fallback.agent_effort),
+        }
+    }
+}
+
+fn field_or_fallback(value: &str, fallback: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        fallback.trim().to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn terminal_key_slot_pane(key: &str) -> Option<(u64, u64)> {
+    let mut parts = key.split(':');
+    let _storage = parts.next()?;
+    let slot_id = parts.next()?.parse::<u64>().ok()?;
+    let pane_id = parts.next()?.parse::<u64>().ok()?;
+    Some((slot_id, pane_id))
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SlotPaneState {
     pub axis: TerminalSplitAxis,
@@ -797,6 +825,45 @@ impl WorkspaceEntry {
     #[must_use]
     pub fn new_storage_key() -> String {
         uuid::Uuid::new_v4().simple().to_string()
+    }
+
+    fn slot_agent_state_at(&self, slot_idx: usize) -> SlotPaneAgentState {
+        SlotPaneAgentState {
+            agent_label: self
+                .slot_agent_labels
+                .get(slot_idx)
+                .cloned()
+                .unwrap_or_default(),
+            agent_model: self
+                .slot_agent_models
+                .get(slot_idx)
+                .cloned()
+                .unwrap_or_default(),
+            agent_effort: self
+                .slot_agent_efforts
+                .get(slot_idx)
+                .cloned()
+                .unwrap_or_default(),
+        }
+    }
+
+    #[must_use]
+    pub fn pane_agent_state(&self, slot_id: u64, pane_id: u64) -> Option<SlotPaneAgentState> {
+        let slot_idx = self.slot_ids.iter().position(|id| *id == slot_id)?;
+        let fallback = self.slot_agent_state_at(slot_idx);
+        let pane_state = self
+            .slot_pane_states
+            .get(slot_idx)
+            .cloned()
+            .unwrap_or_else(|| SlotPaneState::default_for_slot(slot_id));
+        let pane_idx = pane_state.pane_ids.iter().position(|id| *id == pane_id)?;
+        Some(
+            pane_state
+                .pane_agents
+                .get(pane_idx)
+                .map(|agent| agent.with_fallback(&fallback))
+                .unwrap_or(fallback),
+        )
     }
 
     #[must_use]
@@ -2145,13 +2212,11 @@ impl WorkbenchService {
 
     fn agent_slug_for_terminal_key(&self, key: &str) -> Option<String> {
         let storage_key = super::agent_accent::terminal_key_storage_key(key)?;
-        let slot_id = key.split(':').nth(1)?.parse::<u64>().ok()?;
+        let (slot_id, pane_id) = terminal_key_slot_pane(key)?;
         self.workspaces.with_untracked(|list| {
             let ws = list.iter().find(|w| w.storage_key == storage_key)?;
-            let idx = ws.slot_ids.iter().position(|&id| id == slot_id)?;
-            ws.slot_agent_labels
-                .get(idx)
-                .map(|s| s.trim().to_ascii_lowercase())
+            ws.pane_agent_state(slot_id, pane_id)
+                .map(|agent| agent.agent_label.trim().to_ascii_lowercase())
                 .filter(|s| !s.is_empty())
         })
     }
@@ -2171,13 +2236,11 @@ impl WorkbenchService {
     /// entries return `None` so the agent's own default model is used.
     pub fn agent_model_for_terminal_key(&self, terminal_key: &str) -> Option<String> {
         let storage_key = super::agent_accent::terminal_key_storage_key(terminal_key)?;
-        let slot_id = terminal_key.split(':').nth(1)?.parse::<u64>().ok()?;
+        let (slot_id, pane_id) = terminal_key_slot_pane(terminal_key)?;
         self.workspaces.with_untracked(|list| {
             let ws = list.iter().find(|w| w.storage_key == storage_key)?;
-            let idx = ws.slot_ids.iter().position(|&id| id == slot_id)?;
-            ws.slot_agent_models
-                .get(idx)
-                .map(|s| s.trim().to_string())
+            ws.pane_agent_state(slot_id, pane_id)
+                .map(|agent| agent.agent_model.trim().to_string())
                 .filter(|s| !s.is_empty())
         })
     }
@@ -2187,13 +2250,11 @@ impl WorkbenchService {
     /// used.
     pub fn agent_effort_for_terminal_key(&self, terminal_key: &str) -> Option<String> {
         let storage_key = super::agent_accent::terminal_key_storage_key(terminal_key)?;
-        let slot_id = terminal_key.split(':').nth(1)?.parse::<u64>().ok()?;
+        let (slot_id, pane_id) = terminal_key_slot_pane(terminal_key)?;
         self.workspaces.with_untracked(|list| {
             let ws = list.iter().find(|w| w.storage_key == storage_key)?;
-            let idx = ws.slot_ids.iter().position(|&id| id == slot_id)?;
-            ws.slot_agent_efforts
-                .get(idx)
-                .map(|s| s.trim().to_string())
+            ws.pane_agent_state(slot_id, pane_id)
+                .map(|agent| agent.agent_effort.trim().to_string())
                 .filter(|s| !s.is_empty())
         })
     }
@@ -2330,19 +2391,15 @@ impl WorkbenchService {
         let Some(storage_key) = super::agent_accent::terminal_key_storage_key(key) else {
             return false;
         };
-        let Some(slot_id) = key.split(':').nth(1).and_then(|s| s.parse::<u64>().ok()) else {
+        let Some((slot_id, pane_id)) = terminal_key_slot_pane(key) else {
             return false;
         };
         self.workspaces.with_untracked(|list| {
             let Some(ws) = list.iter().find(|w| w.storage_key == storage_key) else {
                 return false;
             };
-            let Some(idx) = ws.slot_ids.iter().position(|&id| id == slot_id) else {
-                return false;
-            };
-            ws.slot_agent_labels
-                .get(idx)
-                .map(|s| !s.trim().is_empty())
+            ws.pane_agent_state(slot_id, pane_id)
+                .map(|agent| !agent.agent_label.trim().is_empty())
                 .unwrap_or(false)
         })
     }
@@ -6363,6 +6420,35 @@ mod terminal_slot_tests {
         assert_eq!(state.pane_ids, vec![1001]);
         assert_eq!(state.next_pane_id, 1002);
         assert!(state.pane_agents.is_empty());
+    }
+
+    #[test]
+    fn pane_agent_state_falls_back_to_slot_agent_arrays() {
+        let ws = mk_slots(2);
+        let pane_id = SlotPaneState::default_for_slot(2).pane_ids[0];
+
+        let agent = ws.pane_agent_state(2, pane_id).expect("pane agent");
+
+        assert_eq!(agent.agent_label, "label1");
+        assert_eq!(agent.agent_model, "model1");
+        assert_eq!(agent.agent_effort, "effort1");
+    }
+
+    #[test]
+    fn pane_agent_state_uses_pane_values_with_field_fallback() {
+        let mut ws = mk_slots(1);
+        let pane_id = ws.slot_pane_states[0].pane_ids[0];
+        ws.slot_pane_states[0].pane_agents[0] = SlotPaneAgentState {
+            agent_label: "codex".into(),
+            agent_model: String::new(),
+            agent_effort: "high".into(),
+        };
+
+        let agent = ws.pane_agent_state(1, pane_id).expect("pane agent");
+
+        assert_eq!(agent.agent_label, "codex");
+        assert_eq!(agent.agent_model, "model0");
+        assert_eq!(agent.agent_effort, "high");
     }
 
     #[test]
