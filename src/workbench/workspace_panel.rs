@@ -621,22 +621,26 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                             on_full_size=on_full_size
                                             canvas_mode=Signal::derive(move || canvas_active.get())
                                             canvas_style=Signal::derive(move || {
-                                                canvas_terminal_style(
-                                                    &wb.workspaces()
-                                                        .get()
-                                                        .into_iter()
-                                                        .find(|w| w.id == workspace_id),
-                                                    terminal_id,
-                                                    index,
-                                                )
+                                                let workspace = wb
+                                                    .workspaces()
+                                                    .get()
+                                                    .into_iter()
+                                                    .find(|w| w.id == workspace_id);
+                                                let current_index = workspace
+                                                    .as_ref()
+                                                    .and_then(|workspace| {
+                                                        workspace.slot_ids.iter().position(|id| *id == terminal_id)
+                                                    })
+                                                    .unwrap_or(index);
+                                                canvas_terminal_style(&workspace, terminal_id, current_index)
                                             })
                                             grid_style=Signal::derive(move || {
                                                 workspace
                                                     .get()
                                                     .map(|workspace| {
-                                                        terminal_slot_grid_item_style(
-                                                            index,
-                                                            workspace.slot_ids.len(),
+                                                        terminal_slot_grid_item_style_for_slot(
+                                                            terminal_id,
+                                                            &workspace.slot_ids,
                                                             workspace.grid_rows as usize,
                                                             workspace.grid_cols as usize,
                                                         )
@@ -2682,9 +2686,24 @@ fn terminal_slot_grid_item_style(
     }
 }
 
+fn terminal_slot_grid_item_style_for_slot(
+    slot_id: u64,
+    slot_ids: &[u64],
+    rows: usize,
+    cols: usize,
+) -> String {
+    slot_ids
+        .iter()
+        .position(|id| *id == slot_id)
+        .map(|index| terminal_slot_grid_item_style(index, slot_ids.len(), rows, cols))
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod swarm_preview_tests {
-    use super::{strip_ansi_for_preview, terminal_slot_grid_item_style};
+    use super::{
+        strip_ansi_for_preview, terminal_slot_grid_item_style, terminal_slot_grid_item_style_for_slot,
+    };
 
     #[test]
     fn strips_terminal_escape_sequences_for_preview() {
@@ -2751,6 +2770,25 @@ mod swarm_preview_tests {
             terminal_slot_grid_item_style(14, 15, 4, 4),
             "grid-row:4;grid-column:4;"
         );
+    }
+
+    #[test]
+    fn terminal_grid_uses_current_slot_order_after_middle_close() {
+        let slot_ids = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16];
+
+        assert_eq!(
+            terminal_slot_grid_item_style_for_slot(13, &slot_ids, 4, 4),
+            "grid-row:4;grid-column:1 / span 2;"
+        );
+        assert_eq!(
+            terminal_slot_grid_item_style_for_slot(15, &slot_ids, 4, 4),
+            "grid-row:4;grid-column:3;"
+        );
+        assert_eq!(
+            terminal_slot_grid_item_style_for_slot(16, &slot_ids, 4, 4),
+            "grid-row:4;grid-column:4;"
+        );
+        assert_eq!(terminal_slot_grid_item_style_for_slot(14, &slot_ids, 4, 4), "");
     }
 
     #[test]
