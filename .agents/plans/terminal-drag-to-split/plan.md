@@ -196,7 +196,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 
 ### P1 State Model
 
-- [ ] `pane-agent-state-type` - Add serde-compatible per-pane agent metadata type
+- [x] `pane-agent-state-type` - Add serde-compatible per-pane agent metadata type
 - [ ] `slot-pane-state-compat` - Extend `SlotPaneState` with defaulted pane metadata while keeping old snapshots valid
 - [ ] `pane-agent-resolver` - Add helper to resolve pane agent/model/effort with slot-level fallback
 - [ ] `pane-state-normalization` - Add small helpers for aligned pane id and pane metadata mutation

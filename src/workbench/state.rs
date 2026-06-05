@@ -755,6 +755,16 @@ pub fn workspace_color_from_presets(presets: &[MemoryColorPreset], index: usize)
 
 /// Per-slot terminal split state — survives a restart so the grid of
 /// panes inside each slot is restored exactly as the user left it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SlotPaneAgentState {
+    #[serde(default)]
+    pub agent_label: String,
+    #[serde(default)]
+    pub agent_model: String,
+    #[serde(default)]
+    pub agent_effort: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SlotPaneState {
     pub axis: TerminalSplitAxis,
