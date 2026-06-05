@@ -14,10 +14,10 @@ use crate::workbench::harness_ui::SettingsDock;
 use crate::workbench::memory_panel::MemoryPanel;
 use crate::workbench::shortcut_config::ShortcutAction;
 use crate::workbench::state::{
-    workspace_entry_has_folder, BrowserEmbedSurface, CanvasNodeKind, CanvasNodeLayout,
-    CanvasPortDirection, CanvasPortRef, CanvasTransferMode, CenterTab, CenterTabKind,
-    HarnessUiService, SlotPaneAgentState, SlotPaneState, TerminalSplitAxis, WorkspaceEntry,
-    WorkspaceViewMode, CENTER_TERMINALS_TAB_ID,
+    terminal_grid_item_style_for_slot, workspace_entry_has_folder, BrowserEmbedSurface,
+    CanvasNodeKind, CanvasNodeLayout, CanvasPortDirection, CanvasPortRef, CanvasTransferMode,
+    CenterTab, CenterTabKind, HarnessUiService, SlotPaneAgentState, SlotPaneState,
+    TerminalSplitAxis, WorkspaceEntry, WorkspaceViewMode, CENTER_TERMINALS_TAB_ID,
 };
 use crate::workbench::terminal_cell::WorkspaceTerminalCell;
 use crate::workbench::terminal_context_menu::{
@@ -638,7 +638,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                                 workspace
                                                     .get()
                                                     .map(|workspace| {
-                                                        terminal_slot_grid_item_style_for_slot(
+                                                        terminal_grid_item_style_for_slot(
                                                             terminal_id,
                                                             &workspace.slot_ids,
                                                             workspace.grid_rows as usize,
@@ -2654,56 +2654,10 @@ fn terminal_slots(workspace: &WorkspaceEntry) -> Vec<TerminalRenderSlot> {
         .collect()
 }
 
-fn terminal_slot_grid_item_style(
-    index: usize,
-    slot_count: usize,
-    rows: usize,
-    cols: usize,
-) -> String {
-    if rows <= 1 || cols <= 1 || slot_count == 0 {
-        return String::new();
-    }
-    let final_row_items = slot_count % cols;
-    if final_row_items == 0 {
-        return String::new();
-    }
-    let final_row_start = slot_count - final_row_items;
-    if index < final_row_start {
-        return String::new();
-    }
-
-    let item_in_final_row = index - final_row_start;
-    let base_span = cols / final_row_items;
-    let extra_spans = cols % final_row_items;
-    let span = base_span + usize::from(item_in_final_row < extra_spans);
-    let start = 1
-        + item_in_final_row * base_span
-        + item_in_final_row.min(extra_spans);
-    if span > 1 {
-        format!("grid-row:{rows};grid-column:{start} / span {span};")
-    } else {
-        format!("grid-row:{rows};grid-column:{start};")
-    }
-}
-
-fn terminal_slot_grid_item_style_for_slot(
-    slot_id: u64,
-    slot_ids: &[u64],
-    rows: usize,
-    cols: usize,
-) -> String {
-    slot_ids
-        .iter()
-        .position(|id| *id == slot_id)
-        .map(|index| terminal_slot_grid_item_style(index, slot_ids.len(), rows, cols))
-        .unwrap_or_default()
-}
-
 #[cfg(test)]
 mod swarm_preview_tests {
-    use super::{
-        strip_ansi_for_preview, terminal_slot_grid_item_style, terminal_slot_grid_item_style_for_slot,
-    };
+    use super::strip_ansi_for_preview;
+    use crate::workbench::state::{terminal_grid_item_style, terminal_grid_item_style_for_slot};
 
     #[test]
     fn strips_terminal_escape_sequences_for_preview() {
@@ -2715,19 +2669,19 @@ mod swarm_preview_tests {
     #[test]
     fn terminal_grid_distributes_incomplete_final_row() {
         assert_eq!(
-            terminal_slot_grid_item_style(2, 3, 2, 2),
+            terminal_grid_item_style(2, 3, 2, 2),
             "grid-row:2;grid-column:1 / span 2;"
         );
         assert_eq!(
-            terminal_slot_grid_item_style(8, 10, 3, 4),
+            terminal_grid_item_style(8, 10, 3, 4),
             "grid-row:3;grid-column:1 / span 2;"
         );
         assert_eq!(
-            terminal_slot_grid_item_style(9, 10, 3, 4),
+            terminal_grid_item_style(9, 10, 3, 4),
             "grid-row:3;grid-column:3 / span 2;"
         );
         assert_eq!(
-            terminal_slot_grid_item_style(6, 7, 3, 3),
+            terminal_grid_item_style(6, 7, 3, 3),
             "grid-row:3;grid-column:1 / span 3;"
         );
     }
@@ -2735,23 +2689,23 @@ mod swarm_preview_tests {
     #[test]
     fn terminal_grid_assigns_extra_span_to_first_final_row_items() {
         assert_eq!(
-            terminal_slot_grid_item_style(8, 11, 3, 4),
+            terminal_grid_item_style(8, 11, 3, 4),
             "grid-row:3;grid-column:1 / span 2;"
         );
         assert_eq!(
-            terminal_slot_grid_item_style(9, 11, 3, 4),
+            terminal_grid_item_style(9, 11, 3, 4),
             "grid-row:3;grid-column:3;"
         );
         assert_eq!(
-            terminal_slot_grid_item_style(10, 11, 3, 4),
+            terminal_grid_item_style(10, 11, 3, 4),
             "grid-row:3;grid-column:4;"
         );
         assert_eq!(
-            terminal_slot_grid_item_style(3, 5, 2, 3),
+            terminal_grid_item_style(3, 5, 2, 3),
             "grid-row:2;grid-column:1 / span 2;"
         );
         assert_eq!(
-            terminal_slot_grid_item_style(4, 5, 2, 3),
+            terminal_grid_item_style(4, 5, 2, 3),
             "grid-row:2;grid-column:3;"
         );
     }
@@ -2759,15 +2713,15 @@ mod swarm_preview_tests {
     #[test]
     fn terminal_grid_places_fifteen_slots_without_implicit_rows() {
         assert_eq!(
-            terminal_slot_grid_item_style(12, 15, 4, 4),
+            terminal_grid_item_style(12, 15, 4, 4),
             "grid-row:4;grid-column:1 / span 2;"
         );
         assert_eq!(
-            terminal_slot_grid_item_style(13, 15, 4, 4),
+            terminal_grid_item_style(13, 15, 4, 4),
             "grid-row:4;grid-column:3;"
         );
         assert_eq!(
-            terminal_slot_grid_item_style(14, 15, 4, 4),
+            terminal_grid_item_style(14, 15, 4, 4),
             "grid-row:4;grid-column:4;"
         );
     }
@@ -2777,25 +2731,25 @@ mod swarm_preview_tests {
         let slot_ids = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16];
 
         assert_eq!(
-            terminal_slot_grid_item_style_for_slot(13, &slot_ids, 4, 4),
+            terminal_grid_item_style_for_slot(13, &slot_ids, 4, 4),
             "grid-row:4;grid-column:1 / span 2;"
         );
         assert_eq!(
-            terminal_slot_grid_item_style_for_slot(15, &slot_ids, 4, 4),
+            terminal_grid_item_style_for_slot(15, &slot_ids, 4, 4),
             "grid-row:4;grid-column:3;"
         );
         assert_eq!(
-            terminal_slot_grid_item_style_for_slot(16, &slot_ids, 4, 4),
+            terminal_grid_item_style_for_slot(16, &slot_ids, 4, 4),
             "grid-row:4;grid-column:4;"
         );
-        assert_eq!(terminal_slot_grid_item_style_for_slot(14, &slot_ids, 4, 4), "");
+        assert_eq!(terminal_grid_item_style_for_slot(14, &slot_ids, 4, 4), "");
     }
 
     #[test]
     fn terminal_grid_does_not_span_full_or_multi_item_rows() {
-        assert_eq!(terminal_slot_grid_item_style(1, 2, 1, 2), "");
-        assert_eq!(terminal_slot_grid_item_style(2, 4, 2, 2), "");
-        assert_eq!(terminal_slot_grid_item_style(6, 8, 2, 4), "");
+        assert_eq!(terminal_grid_item_style(1, 2, 1, 2), "");
+        assert_eq!(terminal_grid_item_style(2, 4, 2, 2), "");
+        assert_eq!(terminal_grid_item_style(6, 8, 2, 4), "");
     }
 }
 

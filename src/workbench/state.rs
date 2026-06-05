@@ -31,6 +31,51 @@ pub const WORKSPACE_FLEET_AGENT_SLUGS: [&str; 5] =
 
 pub const DEFAULT_AGENT_CHAT_SESSION_ID: &str = "default";
 
+#[must_use]
+pub fn terminal_grid_item_style(
+    index: usize,
+    slot_count: usize,
+    rows: usize,
+    cols: usize,
+) -> String {
+    if rows <= 1 || cols <= 1 || slot_count == 0 {
+        return String::new();
+    }
+    let final_row_items = slot_count % cols;
+    if final_row_items == 0 {
+        return String::new();
+    }
+    let final_row_start = slot_count - final_row_items;
+    if index < final_row_start {
+        return String::new();
+    }
+
+    let item_in_final_row = index - final_row_start;
+    let base_span = cols / final_row_items;
+    let extra_spans = cols % final_row_items;
+    let span = base_span + usize::from(item_in_final_row < extra_spans);
+    let start = 1 + item_in_final_row * base_span + item_in_final_row.min(extra_spans);
+    if span > 1 {
+        format!("grid-row:{rows};grid-column:{start} / span {span};")
+    } else {
+        format!("grid-row:{rows};grid-column:{start};")
+    }
+}
+
+#[must_use]
+pub fn terminal_grid_item_style_for_slot(
+    slot_id: u64,
+    slot_ids: &[u64],
+    rows: usize,
+    cols: usize,
+) -> String {
+    slot_ids
+        .iter()
+        .position(|id| *id == slot_id)
+        .map(|index| terminal_grid_item_style(index, slot_ids.len(), rows, cols))
+        .unwrap_or_default()
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentChatSessionStatus {

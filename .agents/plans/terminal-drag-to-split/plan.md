@@ -235,6 +235,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 - [x] `unit-tests-state` - Add pure state tests for all split directions and error cases
 - [x] `unit-tests-adoption` - Add service-level tests for PTY key move/adoption where practical
 - [x] `regression-tests-existing` - Run existing swap, transfer, key-pair, and popout tests
+- [x] `sidebar-grid-preview-spans` - Reuse the terminal grid span helper for the sidebar workspace mini-grid so previews match incomplete final rows
 - [x] `cargo-check-workspace` - Run `cargo check --workspace --locked`
 - [ ] `manual-tauri-dnd` - Manually verify swap and all four split drops in Tauri
 - [ ] `manual-tauri-runtime` - Manually verify running shell, running agent, notifications, restart, cross-workspace drag, extract, and popout

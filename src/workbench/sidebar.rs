@@ -17,7 +17,9 @@ use crate::workbench::project_explorer::ProjectExplorerSection;
 use crate::workbench::ptt_runtime::PttBus;
 use crate::workbench::sidebar_resizer::SidebarResizer;
 use crate::workbench::sidebar_resizer::SidebarResizerClamp;
-use crate::workbench::state::{is_shell_workspace, HarnessSettingsCategory, HarnessUiService};
+use crate::workbench::state::{
+    is_shell_workspace, terminal_grid_item_style, HarnessSettingsCategory, HarnessUiService,
+};
 use crate::workbench::terminal_slot_dnd::{
     is_terminal_drag, read_drag_payload, TerminalSlotDragService,
 };
@@ -313,8 +315,8 @@ pub fn Sidebar() -> impl IntoView {
                                         .find(|w| w.id == id)
                                         .map(|w| {
                                             let count = w.slot_ids.len().max(1);
-                                            let rows = w.grid_rows.max(1);
-                                            let cols = w.grid_cols.max(1);
+                                            let rows = usize::from(w.grid_rows.max(1));
+                                            let cols = usize::from(w.grid_cols.max(1));
                                             (count, rows, cols)
                                         })
                                         .unwrap_or((1, 1, 1))
@@ -559,8 +561,19 @@ pub fn Sidebar() -> impl IntoView {
                                                         title=title
                                                         style=style
                                                     >
-                                                        {(0..count).map(|_| view! {
-                                                            <span class="workbench-sidebar__terminal-layout-cell"></span>
+                                                        {(0..count).map(|index| {
+                                                            let cell_style = terminal_grid_item_style(
+                                                                index,
+                                                                count,
+                                                                rows,
+                                                                cols,
+                                                            );
+                                                            view! {
+                                                            <span
+                                                                class="workbench-sidebar__terminal-layout-cell"
+                                                                style=cell_style
+                                                            ></span>
+                                                            }
                                                         }).collect_view()}
                                                     </span>
                                                 }
