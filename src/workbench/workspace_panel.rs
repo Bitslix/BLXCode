@@ -16,8 +16,8 @@ use crate::workbench::shortcut_config::ShortcutAction;
 use crate::workbench::state::{
     workspace_entry_has_folder, BrowserEmbedSurface, CanvasNodeKind, CanvasNodeLayout,
     CanvasPortDirection, CanvasPortRef, CanvasTransferMode, CenterTab, CenterTabKind,
-    HarnessUiService, SlotPaneAgentState, TerminalSplitAxis, WorkspaceEntry, WorkspaceViewMode,
-    CENTER_TERMINALS_TAB_ID,
+    HarnessUiService, SlotPaneAgentState, SlotPaneState, TerminalSplitAxis, WorkspaceEntry,
+    WorkspaceViewMode, CENTER_TERMINALS_TAB_ID,
 };
 use crate::workbench::terminal_cell::WorkspaceTerminalCell;
 use crate::workbench::terminal_context_menu::{
@@ -1330,6 +1330,7 @@ fn TerminalSlotSurface(
     let next_pane_id = RwSignal::new(persisted.next_pane_id);
     let pane_agents = RwSignal::new(persisted.pane_agents);
     let split_axis = RwSignal::new(persisted.axis);
+    let suppress_next_pane_persist = StoredValue::new(None::<SlotPaneState>);
 
     // Per-slot drag-eligibility gate. Split panes can't be reordered
     // piecewise, but the slot chrome should still expose a grab handle for
@@ -1372,12 +1373,33 @@ fn TerminalSlotSurface(
     // auto-save effect can persist it. set_slot_panes deduplicates so
     // unchanged ticks don't trigger spurious saves.
     Effect::new(move |_| {
-        let snapshot = crate::workbench::state::SlotPaneState {
+        let persisted = wb.slot_panes(workspace_id, slot_id);
+        let current = SlotPaneState {
+            axis: split_axis.get_untracked(),
+            pane_ids: pane_ids.get_untracked(),
+            next_pane_id: next_pane_id.get_untracked(),
+            pane_agents: pane_agents.get_untracked(),
+        };
+        if persisted != current {
+            suppress_next_pane_persist.set_value(Some(persisted.clone()));
+            split_axis.set(persisted.axis);
+            pane_ids.set(persisted.pane_ids);
+            next_pane_id.set(persisted.next_pane_id);
+            pane_agents.set(persisted.pane_agents);
+        }
+    });
+
+    Effect::new(move |_| {
+        let snapshot = SlotPaneState {
             axis: split_axis.get(),
             pane_ids: pane_ids.get(),
             next_pane_id: next_pane_id.get(),
             pane_agents: pane_agents.get(),
         };
+        if suppress_next_pane_persist.get_value().as_ref() == Some(&snapshot) {
+            suppress_next_pane_persist.set_value(None);
+            return;
+        }
         wb.set_slot_panes(workspace_id, slot_id, snapshot);
     });
 
