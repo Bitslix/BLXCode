@@ -29,8 +29,8 @@ use crate::workbench::terminal_glue::{
 };
 use crate::workbench::terminal_slot_dnd::{
     drag_event_data_transfer, is_terminal_drag, read_drag_payload,
-    terminal_slot_drop_action_from_normalized, GhostPos, TerminalSlotDragService,
-    TerminalSlotDropAction,
+    terminal_slot_drop_action_from_normalized, terminal_slot_drop_source_is_valid, GhostPos,
+    TerminalSlotDragService, TerminalSlotDropAction,
 };
 use crate::workbench::toast::ToastService;
 use crate::workbench::{WorkbenchService, WorkspaceKanban};
@@ -80,7 +80,9 @@ fn accepts_slot_drop(
     match source {
         // Same-workspace, non-source slot → valid grid target. A foreign
         // workspace's terminal is transferred via the sidebar, not the grid.
-        Some((src_ws, src_slot)) => src_ws == workspace_id && src_slot != slot_id,
+        Some((src_ws, src_slot)) => {
+            terminal_slot_drop_source_is_valid(src_ws, src_slot, workspace_id, slot_id)
+        }
         // Source unknown yet — accept; `drop` re-validates with readable data.
         None => true,
     }
@@ -1467,7 +1469,12 @@ fn TerminalSlotSurface(
                         })
                     });
                 if let Some(payload) = payload {
-                    if payload.workspace_id == workspace_id && payload.slot_id != slot_id {
+                    if terminal_slot_drop_source_is_valid(
+                        payload.workspace_id,
+                        payload.slot_id,
+                        workspace_id,
+                        slot_id,
+                    ) {
                         let action = slot_dnd
                             .ghost
                             .get_untracked()

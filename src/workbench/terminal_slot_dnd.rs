@@ -52,6 +52,16 @@ pub fn terminal_slot_drop_action_from_normalized(x: f64, y: f64) -> TerminalSlot
         .unwrap_or(TerminalSlotDropAction::Swap)
 }
 
+#[must_use]
+pub fn terminal_slot_drop_source_is_valid(
+    source_workspace_id: u64,
+    source_slot_id: u64,
+    target_workspace_id: u64,
+    target_slot_id: u64,
+) -> bool {
+    source_workspace_id == target_workspace_id && source_slot_id != target_slot_id
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GhostPos {
     pub target_slot_id: u64,
@@ -222,5 +232,16 @@ mod tests {
             terminal_slot_drop_action_from_normalized(0.5, f64::INFINITY),
             TerminalSlotDropAction::Swap
         );
+    }
+
+    #[test]
+    fn terminal_drop_source_validation_accepts_same_workspace_peer_slot() {
+        assert!(terminal_slot_drop_source_is_valid(1, 10, 1, 11));
+    }
+
+    #[test]
+    fn terminal_drop_source_validation_rejects_self_or_foreign_workspace() {
+        assert!(!terminal_slot_drop_source_is_valid(1, 10, 1, 10));
+        assert!(!terminal_slot_drop_source_is_valid(1, 10, 2, 11));
     }
 }
