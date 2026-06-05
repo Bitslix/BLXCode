@@ -7,6 +7,7 @@ use crate::service::I18nService;
 use crate::tauri_bridge::{
     heartbeat_services_list, heartbeat_set_open_workspaces, is_tauri_shell,
     listen_heartbeat_services_changed, HeartbeatServiceStatus, HeartbeatServiceView,
+    PopoutPayload,
 };
 use crate::workbench::AppTitleBar;
 use crate::workbench::EditorSettingsService;
@@ -17,6 +18,7 @@ use crate::workbench::UpdateService;
 use crate::workbench::UpdateUiStatus;
 use crate::workbench::WorkbenchService;
 use crate::workbench::WorkbenchShell;
+use crate::workbench::PopoutShell;
 use crate::workbench::{CoreStatusBarItem, CoreStatusService, VimStatusIndicator};
 use crate::workbench::{HookInstallDialogService, HookStatusBarItem, HookStatusService};
 use gloo_timers::future::TimeoutFuture;
@@ -50,6 +52,7 @@ pub fn App() -> impl IntoView {
     // Provided at the App root so the sibling `AppStatusLine` can show the
     // enabled-rules/skills counts for the active workspace in its centre slot.
     let core_status = CoreStatusService::new();
+    let popout_payload = RwSignal::new(read_popout_payload());
     provide_context(i18n);
     provide_context(theme);
     provide_context(editor_settings);
@@ -145,13 +148,14 @@ pub fn App() -> impl IntoView {
         localized_eula_html(loc)
     });
 
-    let show_workbench = move || eula_ok.get();
-    let show_eula = move || !eula_ok.get();
+    let is_popout = popout_payload.get_untracked().is_some();
+    let show_workbench = move || eula_ok.get() || is_popout;
+    let show_eula = move || !eula_ok.get() && !is_popout;
 
     // Workspace-scoped title-bar controls appear only once the UI is ready and
     // the EULA is accepted; during boot/EULA only the brand + window controls
     // (drag, minimize, maximize, close) render.
-    let workbench_active = Signal::derive(move || ui_ready.get() && eula_ok.get());
+    let workbench_active = Signal::derive(move || ui_ready.get() && eula_ok.get() && !is_popout);
 
     view! {
         <div class="app-root">
@@ -185,7 +189,13 @@ pub fn App() -> impl IntoView {
                             </div>
                         </Show>
                     }>
-                        <WorkbenchShell/>
+                        {move || {
+                            if let Some(payload) = popout_payload.get() {
+                                view! { <PopoutShell payload=payload /> }.into_any()
+                            } else {
+                                view! { <WorkbenchShell/> }.into_any()
+                            }
+                        }}
                     </Show>
                 </Show>
             </div>
@@ -194,6 +204,21 @@ pub fn App() -> impl IntoView {
             </Show>
         </div>
     }
+}
+
+fn read_popout_payload() -> Option<PopoutPayload> {
+    use base64::Engine;
+
+    let search = web_sys::window()?.location().search().ok()?;
+    let query = search.strip_prefix('?').unwrap_or(search.as_str());
+    let encoded = query.split('&').find_map(|part| {
+        let (key, value) = part.split_once('=')?;
+        (key == "popout").then_some(value)
+    })?;
+    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(encoded)
+        .ok()?;
+    serde_json::from_slice::<PopoutPayload>(&bytes).ok()
 }
 
 #[component]
