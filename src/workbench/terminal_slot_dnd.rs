@@ -19,16 +19,44 @@ pub struct TerminalSlotDragPayload {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[expect(
-    dead_code,
-    reason = "split variants are wired by the follow-up drop geometry task"
-)]
 pub enum TerminalSlotDropAction {
     Swap,
     SplitTop,
     SplitBottom,
     SplitLeft,
     SplitRight,
+}
+
+#[must_use]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "drop geometry is wired into dragover dispatch by the follow-up task"
+    )
+)]
+pub fn terminal_slot_drop_action_from_normalized(x: f64, y: f64) -> TerminalSlotDropAction {
+    if !x.is_finite() || !y.is_finite() {
+        return TerminalSlotDropAction::Swap;
+    }
+
+    let x = x.clamp(0.0, 1.0);
+    let y = y.clamp(0.0, 1.0);
+    if (0.3..=0.7).contains(&x) && (0.3..=0.7).contains(&y) {
+        return TerminalSlotDropAction::Swap;
+    }
+
+    let distances = [
+        (y, TerminalSlotDropAction::SplitTop),
+        (1.0 - y, TerminalSlotDropAction::SplitBottom),
+        (x, TerminalSlotDropAction::SplitLeft),
+        (1.0 - x, TerminalSlotDropAction::SplitRight),
+    ];
+    distances
+        .into_iter()
+        .min_by(|(left, _), (right, _)| left.total_cmp(right))
+        .map(|(_, action)| action)
+        .unwrap_or(TerminalSlotDropAction::Swap)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -141,4 +169,65 @@ pub fn is_terminal_drag(dt: &DataTransfer) -> bool {
 
 pub fn drag_event_data_transfer(ev: &web_sys::DragEvent) -> Option<web_sys::DataTransfer> {
     ev.data_transfer()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terminal_drop_action_uses_center_zone_for_swap() {
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.5, 0.5),
+            TerminalSlotDropAction::Swap
+        );
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.3, 0.7),
+            TerminalSlotDropAction::Swap
+        );
+    }
+
+    #[test]
+    fn terminal_drop_action_selects_nearest_cardinal_edge() {
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.5, 0.1),
+            TerminalSlotDropAction::SplitTop
+        );
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.5, 0.9),
+            TerminalSlotDropAction::SplitBottom
+        );
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.1, 0.5),
+            TerminalSlotDropAction::SplitLeft
+        );
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.9, 0.5),
+            TerminalSlotDropAction::SplitRight
+        );
+    }
+
+    #[test]
+    fn terminal_drop_action_clamps_out_of_range_coordinates() {
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(-0.2, 0.5),
+            TerminalSlotDropAction::SplitLeft
+        );
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(1.2, 0.5),
+            TerminalSlotDropAction::SplitRight
+        );
+    }
+
+    #[test]
+    fn terminal_drop_action_falls_back_to_swap_for_invalid_geometry() {
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(f64::NAN, 0.5),
+            TerminalSlotDropAction::Swap
+        );
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.5, f64::INFINITY),
+            TerminalSlotDropAction::Swap
+        );
+    }
 }
