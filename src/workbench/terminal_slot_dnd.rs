@@ -1,4 +1,10 @@
 //! Drag-and-drop helpers for reordering terminal slots within a workspace grid.
+//!
+//! Drop-intent geometry for the drag-to-split work:
+//! - the centered 40% x 40% rectangle of the target slot is `Swap`;
+//! - outside that center, choose the nearest normalized edge;
+//! - top/bottom edges map to horizontal splits, left/right to vertical splits;
+//! - when a browser cannot provide target geometry, fall back to `Swap`.
 
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -12,9 +18,54 @@ pub struct TerminalSlotDragPayload {
     pub slot_id: u64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TerminalSlotDropAction {
+    Swap,
+    SplitTop,
+    SplitBottom,
+    SplitLeft,
+    SplitRight,
+}
+
+#[must_use]
+pub fn terminal_slot_drop_action_from_normalized(x: f64, y: f64) -> TerminalSlotDropAction {
+    if !x.is_finite() || !y.is_finite() {
+        return TerminalSlotDropAction::Swap;
+    }
+
+    let x = x.clamp(0.0, 1.0);
+    let y = y.clamp(0.0, 1.0);
+    if (0.3..=0.7).contains(&x) && (0.3..=0.7).contains(&y) {
+        return TerminalSlotDropAction::Swap;
+    }
+
+    let distances = [
+        (y, TerminalSlotDropAction::SplitTop),
+        (1.0 - y, TerminalSlotDropAction::SplitBottom),
+        (x, TerminalSlotDropAction::SplitLeft),
+        (1.0 - x, TerminalSlotDropAction::SplitRight),
+    ];
+    distances
+        .into_iter()
+        .min_by(|(left, _), (right, _)| left.total_cmp(right))
+        .map(|(_, action)| action)
+        .unwrap_or(TerminalSlotDropAction::Swap)
+}
+
+#[must_use]
+pub fn terminal_slot_drop_source_is_valid(
+    source_workspace_id: u64,
+    source_slot_id: u64,
+    target_workspace_id: u64,
+    target_slot_id: u64,
+) -> bool {
+    source_workspace_id == target_workspace_id && source_slot_id != target_slot_id
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GhostPos {
     pub target_slot_id: u64,
+    pub action: TerminalSlotDropAction,
     pub rows: u8,
     pub cols: u8,
 }
@@ -121,4 +172,76 @@ pub fn is_terminal_drag(dt: &DataTransfer) -> bool {
 
 pub fn drag_event_data_transfer(ev: &web_sys::DragEvent) -> Option<web_sys::DataTransfer> {
     ev.data_transfer()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terminal_drop_action_uses_center_zone_for_swap() {
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.5, 0.5),
+            TerminalSlotDropAction::Swap
+        );
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.3, 0.7),
+            TerminalSlotDropAction::Swap
+        );
+    }
+
+    #[test]
+    fn terminal_drop_action_selects_nearest_cardinal_edge() {
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.5, 0.1),
+            TerminalSlotDropAction::SplitTop
+        );
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.5, 0.9),
+            TerminalSlotDropAction::SplitBottom
+        );
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.1, 0.5),
+            TerminalSlotDropAction::SplitLeft
+        );
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.9, 0.5),
+            TerminalSlotDropAction::SplitRight
+        );
+    }
+
+    #[test]
+    fn terminal_drop_action_clamps_out_of_range_coordinates() {
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(-0.2, 0.5),
+            TerminalSlotDropAction::SplitLeft
+        );
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(1.2, 0.5),
+            TerminalSlotDropAction::SplitRight
+        );
+    }
+
+    #[test]
+    fn terminal_drop_action_falls_back_to_swap_for_invalid_geometry() {
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(f64::NAN, 0.5),
+            TerminalSlotDropAction::Swap
+        );
+        assert_eq!(
+            terminal_slot_drop_action_from_normalized(0.5, f64::INFINITY),
+            TerminalSlotDropAction::Swap
+        );
+    }
+
+    #[test]
+    fn terminal_drop_source_validation_accepts_same_workspace_peer_slot() {
+        assert!(terminal_slot_drop_source_is_valid(1, 10, 1, 11));
+    }
+
+    #[test]
+    fn terminal_drop_source_validation_rejects_self_or_foreign_workspace() {
+        assert!(!terminal_slot_drop_source_is_valid(1, 10, 1, 10));
+        assert!(!terminal_slot_drop_source_is_valid(1, 10, 2, 11));
+    }
 }

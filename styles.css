@@ -8911,6 +8911,52 @@ button {
   min-height: 0;
 }
 
+.ws-term-slot--split {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, var(--bg-panel), var(--bg-raised)),
+    var(--bg-panel);
+  overflow: hidden;
+}
+
+.ws-term-slot--split:has(.ws-term-cell--active) {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 0 0 1px var(--accent-soft),
+    0 0 0 1px var(--accent-soft);
+}
+
+.ws-term-slot--split .ws-term-pane-grid {
+  gap: 1px !important;
+  background: color-mix(in srgb, var(--border) 68%, transparent);
+}
+
+.ws-term-slot--split .ws-canvas-pane-wrap {
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-panel);
+}
+
+.ws-term-slot--split .ws-term-cell {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background:
+    linear-gradient(180deg, var(--bg-panel), var(--bg-raised)),
+    var(--bg-panel);
+}
+
+.ws-term-slot--split .ws-term-cell--active,
+.ws-term-slot--split .ws-term-cell--active.ws-term-cell--agent-claude,
+.ws-term-slot--split .ws-term-cell--active.ws-term-cell--agent-codex,
+.ws-term-slot--split .ws-term-cell--active.ws-term-cell--agent-gemini,
+.ws-term-slot--split .ws-term-cell--active.ws-term-cell--agent-opencode,
+.ws-term-slot--split .ws-term-cell--active.ws-term-cell--agent-cursor {
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .ws-term-slot--hidden {
   display: none;
 }
@@ -8945,6 +8991,36 @@ button {
     0 0 24px 0 color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
+.ws-term-slot--drag-over::before {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  border: 2px dashed color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.ws-term-slot--drop-swap::before {
+  inset: 0;
+}
+
+.ws-term-slot--drop-split-top::before {
+  inset: 0 0 50% 0;
+}
+
+.ws-term-slot--drop-split-bottom::before {
+  inset: 50% 0 0 0;
+}
+
+.ws-term-slot--drop-split-left::before {
+  inset: 0 50% 0 0;
+}
+
+.ws-term-slot--drop-split-right::before {
+  inset: 0 0 0 50%;
+}
+
 .ws-term-grid--drag-active .ws-term-slot:not(.ws-term-slot--drag-source) .ws-term-cell__xterm {
   pointer-events: none;
 }
@@ -8955,9 +9031,9 @@ button {
 
 .ws-term-slot__drop-hint {
   position: absolute;
-  bottom: 8px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -8972,6 +9048,22 @@ button {
   pointer-events: none;
   box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent);
   z-index: 6;
+}
+
+.ws-term-slot__drop-hint--split-top {
+  top: 25%;
+}
+
+.ws-term-slot__drop-hint--split-bottom {
+  top: 75%;
+}
+
+.ws-term-slot__drop-hint--split-left {
+  left: 25%;
+}
+
+.ws-term-slot__drop-hint--split-right {
+  left: 75%;
 }
 
 /* Cursor-following preview card (EB's DragOverlay equivalent). Always

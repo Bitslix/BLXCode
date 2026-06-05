@@ -14,10 +14,10 @@ use crate::workbench::harness_ui::SettingsDock;
 use crate::workbench::memory_panel::MemoryPanel;
 use crate::workbench::shortcut_config::ShortcutAction;
 use crate::workbench::state::{
-    workspace_entry_has_folder, BrowserEmbedSurface, CanvasNodeKind, CanvasNodeLayout,
-    CanvasPortDirection, CanvasPortRef, CanvasTransferMode, CenterTab, CenterTabKind,
-    HarnessUiService, TerminalSplitAxis, WorkspaceEntry, WorkspaceViewMode,
-    CENTER_TERMINALS_TAB_ID,
+    terminal_grid_item_style_for_slot, workspace_entry_has_folder, BrowserEmbedSurface,
+    CanvasNodeKind, CanvasNodeLayout, CanvasPortDirection, CanvasPortRef, CanvasTransferMode,
+    CenterTab, CenterTabKind, HarnessUiService, SlotPaneAgentState, SlotPaneState,
+    TerminalSplitAxis, WorkspaceEntry, WorkspaceViewMode, CENTER_TERMINALS_TAB_ID,
 };
 use crate::workbench::terminal_cell::WorkspaceTerminalCell;
 use crate::workbench::terminal_context_menu::{
@@ -28,8 +28,9 @@ use crate::workbench::terminal_glue::{
     terminal_observe_workspace_grid, terminal_unobserve_workspace_grid,
 };
 use crate::workbench::terminal_slot_dnd::{
-    drag_event_data_transfer, is_terminal_drag, read_drag_payload, GhostPos,
-    TerminalSlotDragService,
+    drag_event_data_transfer, is_terminal_drag, read_drag_payload,
+    terminal_slot_drop_action_from_normalized, terminal_slot_drop_source_is_valid, GhostPos,
+    TerminalSlotDragService, TerminalSlotDropAction,
 };
 use crate::workbench::toast::ToastService;
 use crate::workbench::{WorkbenchService, WorkspaceKanban};
@@ -79,9 +80,39 @@ fn accepts_slot_drop(
     match source {
         // Same-workspace, non-source slot → valid grid target. A foreign
         // workspace's terminal is transferred via the sidebar, not the grid.
-        Some((src_ws, src_slot)) => src_ws == workspace_id && src_slot != slot_id,
+        Some((src_ws, src_slot)) => {
+            terminal_slot_drop_source_is_valid(src_ws, src_slot, workspace_id, slot_id)
+        }
         // Source unknown yet — accept; `drop` re-validates with readable data.
         None => true,
+    }
+}
+
+fn terminal_slot_drop_action_label_key(action: TerminalSlotDropAction) -> I18nKey {
+    match action {
+        TerminalSlotDropAction::Swap => I18nKey::WsTermDropHere,
+        TerminalSlotDropAction::SplitTop => I18nKey::WsTermDropSplitTop,
+        TerminalSlotDropAction::SplitBottom => I18nKey::WsTermDropSplitBottom,
+        TerminalSlotDropAction::SplitLeft => I18nKey::WsTermDropSplitLeft,
+        TerminalSlotDropAction::SplitRight => I18nKey::WsTermDropSplitRight,
+    }
+}
+
+fn terminal_slot_drop_hint_class(action: TerminalSlotDropAction) -> &'static str {
+    match action {
+        TerminalSlotDropAction::Swap => "ws-term-slot__drop-hint ws-term-slot__drop-hint--swap",
+        TerminalSlotDropAction::SplitTop => {
+            "ws-term-slot__drop-hint ws-term-slot__drop-hint--split-top"
+        }
+        TerminalSlotDropAction::SplitBottom => {
+            "ws-term-slot__drop-hint ws-term-slot__drop-hint--split-bottom"
+        }
+        TerminalSlotDropAction::SplitLeft => {
+            "ws-term-slot__drop-hint ws-term-slot__drop-hint--split-left"
+        }
+        TerminalSlotDropAction::SplitRight => {
+            "ws-term-slot__drop-hint ws-term-slot__drop-hint--split-right"
+        }
     }
 }
 
@@ -129,7 +160,6 @@ struct SwarmDragState {
 struct TerminalRenderSlot {
     id: u64,
     index: usize,
-    agent_slug: String,
 }
 
 #[component]
@@ -558,7 +588,6 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                 children=move |slot| {
                                     let terminal_id = slot.id;
                                     let index = slot.index;
-                                    let slug = slot.agent_slug;
                                     let cwd = workspace.get_untracked().map(|w| w.cwd).unwrap_or_default();
                                     let on_full_size = Callback::new(move |()| {
                                         full_size_terminal.update(|current| {
@@ -576,7 +605,6 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                             slot_id=terminal_id
                                             index=index
                                             cwd=cwd
-                                            agent_slug=slug
                                             slot_drag_enabled=slot_drag_enabled
                                             is_workspace_active=Signal::derive(move || {
                                                 wb.active_id().get() == Some(workspace_id)
@@ -593,14 +621,31 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                             on_full_size=on_full_size
                                             canvas_mode=Signal::derive(move || canvas_active.get())
                                             canvas_style=Signal::derive(move || {
-                                                canvas_terminal_style(
-                                                    &wb.workspaces()
-                                                        .get()
-                                                        .into_iter()
-                                                        .find(|w| w.id == workspace_id),
-                                                    terminal_id,
-                                                    index,
-                                                )
+                                                let workspace = wb
+                                                    .workspaces()
+                                                    .get()
+                                                    .into_iter()
+                                                    .find(|w| w.id == workspace_id);
+                                                let current_index = workspace
+                                                    .as_ref()
+                                                    .and_then(|workspace| {
+                                                        workspace.slot_ids.iter().position(|id| *id == terminal_id)
+                                                    })
+                                                    .unwrap_or(index);
+                                                canvas_terminal_style(&workspace, terminal_id, current_index)
+                                            })
+                                            grid_style=Signal::derive(move || {
+                                                workspace
+                                                    .get()
+                                                    .map(|workspace| {
+                                                        terminal_grid_item_style_for_slot(
+                                                            terminal_id,
+                                                            &workspace.slot_ids,
+                                                            workspace.grid_rows as usize,
+                                                            workspace.grid_cols as usize,
+                                                        )
+                                                    })
+                                                    .unwrap_or_default()
                                             })
                                             canvas_port_active=Signal::derive(move || {
                                                 canvas_port_start.get().map(|p| canvas_port_identity(&p))
@@ -1279,7 +1324,6 @@ fn TerminalSlotSurface(
     slot_id: u64,
     index: usize,
     cwd: String,
-    agent_slug: String,
     slot_drag_enabled: Memo<bool>,
     is_workspace_active: Signal<bool>,
     hidden: Signal<bool>,
@@ -1287,6 +1331,7 @@ fn TerminalSlotSurface(
     on_full_size: Callback<(), ()>,
     canvas_mode: Signal<bool>,
     canvas_style: Signal<String>,
+    grid_style: Signal<String>,
     canvas_port_active: Signal<Option<String>>,
     on_canvas_port: Callback<CanvasPortRef>,
     on_canvas_drag_start: Callback<MouseEvent>,
@@ -1294,13 +1339,16 @@ fn TerminalSlotSurface(
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
+    let toast = expect_context::<ToastService>();
     let slot_dnd = expect_context::<TerminalSlotDragService>();
     // Hydrate split layout from persisted workspace state so a restart
     // preserves the user's exact pane grid.
     let persisted = wb.slot_panes(workspace_id, slot_id);
     let pane_ids = RwSignal::new(persisted.pane_ids);
     let next_pane_id = RwSignal::new(persisted.next_pane_id);
+    let pane_agents = RwSignal::new(persisted.pane_agents);
     let split_axis = RwSignal::new(persisted.axis);
+    let suppress_next_pane_persist = StoredValue::new(None::<SlotPaneState>);
 
     // Per-slot drag-eligibility gate. Split panes can't be reordered
     // piecewise, but the slot chrome should still expose a grab handle for
@@ -1327,23 +1375,49 @@ fn TerminalSlotSurface(
             .get()
             .is_some_and(|m| m.workspace_id == workspace_id && m.slot_id == slot_id)
     });
-    let is_drop_over = Memo::new(move |_| {
-        is_potential_target.get()
-            && slot_dnd
-                .ghost
-                .get()
-                .is_some_and(|g| g.target_slot_id == slot_id)
+    let drop_action = Memo::new(move |_| {
+        if !is_potential_target.get() {
+            return None;
+        }
+        slot_dnd
+            .ghost
+            .get()
+            .filter(|ghost| ghost.target_slot_id == slot_id)
+            .map(|ghost| ghost.action)
     });
+    let is_drop_over = Memo::new(move |_| drop_action.get().is_some());
 
     // Push every change back into the workspace so the workbench
     // auto-save effect can persist it. set_slot_panes deduplicates so
     // unchanged ticks don't trigger spurious saves.
     Effect::new(move |_| {
-        let snapshot = crate::workbench::state::SlotPaneState {
+        let persisted = wb.slot_panes(workspace_id, slot_id);
+        let current = SlotPaneState {
+            axis: split_axis.get_untracked(),
+            pane_ids: pane_ids.get_untracked(),
+            next_pane_id: next_pane_id.get_untracked(),
+            pane_agents: pane_agents.get_untracked(),
+        };
+        if persisted != current {
+            suppress_next_pane_persist.set_value(Some(persisted.clone()));
+            split_axis.set(persisted.axis);
+            pane_ids.set(persisted.pane_ids);
+            next_pane_id.set(persisted.next_pane_id);
+            pane_agents.set(persisted.pane_agents);
+        }
+    });
+
+    Effect::new(move |_| {
+        let snapshot = SlotPaneState {
             axis: split_axis.get(),
             pane_ids: pane_ids.get(),
             next_pane_id: next_pane_id.get(),
+            pane_agents: pane_agents.get(),
         };
+        if suppress_next_pane_persist.get_value().as_ref() == Some(&snapshot) {
+            suppress_next_pane_persist.set_value(None);
+            return;
+        }
         wb.set_slot_panes(workspace_id, slot_id, snapshot);
     });
 
@@ -1354,6 +1428,9 @@ fn TerminalSlotSurface(
                 if hidden.get() {
                     class.push_str(" ws-term-slot--hidden");
                 }
+                if pane_ids.with(|ids| ids.len() > 1) {
+                    class.push_str(" ws-term-slot--split");
+                }
                 if is_drag_source.get() {
                     class.push_str(" ws-term-slot--drag-source");
                 } else if is_potential_target.get() {
@@ -1361,6 +1438,21 @@ fn TerminalSlotSurface(
                 }
                 if is_drop_over.get() {
                     class.push_str(" ws-term-slot--drag-over");
+                    match drop_action.get().unwrap_or(TerminalSlotDropAction::Swap) {
+                        TerminalSlotDropAction::Swap => class.push_str(" ws-term-slot--drop-swap"),
+                        TerminalSlotDropAction::SplitTop => {
+                            class.push_str(" ws-term-slot--drop-split-top");
+                        }
+                        TerminalSlotDropAction::SplitBottom => {
+                            class.push_str(" ws-term-slot--drop-split-bottom");
+                        }
+                        TerminalSlotDropAction::SplitLeft => {
+                            class.push_str(" ws-term-slot--drop-split-left");
+                        }
+                        TerminalSlotDropAction::SplitRight => {
+                            class.push_str(" ws-term-slot--drop-split-right");
+                        }
+                    }
                 }
                 if canvas_mode.get() {
                     class.push_str(" ws-term-slot--canvas-node");
@@ -1371,7 +1463,7 @@ fn TerminalSlotSurface(
                 if canvas_mode.get() {
                     canvas_style.get()
                 } else {
-                    String::new()
+                    grid_style.get()
                 }
             }
             on:dragenter=move |ev| {
@@ -1405,6 +1497,23 @@ fn TerminalSlotSurface(
                     let _ = dt.set_drop_effect("move");
                 }
                 slot_dnd.set_overlay_pos_from_event(de);
+                let action = de
+                    .current_target()
+                    .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                    .map(|target| {
+                        let rect = target.get_bounding_client_rect();
+                        let width = rect.width();
+                        let height = rect.height();
+                        if width <= 0.0 || height <= 0.0 {
+                            TerminalSlotDropAction::Swap
+                        } else {
+                            terminal_slot_drop_action_from_normalized(
+                                (de.client_x() as f64 - rect.left()) / width,
+                                (de.client_y() as f64 - rect.top()) / height,
+                            )
+                        }
+                    })
+                    .unwrap_or(TerminalSlotDropAction::Swap);
                 let (rows, cols) = wb.workspaces().with_untracked(|list| {
                     list.iter()
                         .find(|w| w.id == workspace_id)
@@ -1413,6 +1522,7 @@ fn TerminalSlotSurface(
                 });
                 slot_dnd.ghost.set(Some(GhostPos {
                     target_slot_id: slot_id,
+                    action,
                     rows,
                     cols,
                 }));
@@ -1449,8 +1559,37 @@ fn TerminalSlotSurface(
                         })
                     });
                 if let Some(payload) = payload {
-                    if payload.workspace_id == workspace_id && payload.slot_id != slot_id {
-                        wb.swap_terminal_slots(workspace_id, payload.slot_id, slot_id);
+                    if terminal_slot_drop_source_is_valid(
+                        payload.workspace_id,
+                        payload.slot_id,
+                        workspace_id,
+                        slot_id,
+                    ) {
+                        let action = slot_dnd
+                            .ghost
+                            .get_untracked()
+                            .filter(|ghost| ghost.target_slot_id == slot_id)
+                            .map(|ghost| ghost.action)
+                            .unwrap_or(TerminalSlotDropAction::Swap);
+                        match action {
+                            TerminalSlotDropAction::Swap => {
+                                wb.swap_terminal_slots(workspace_id, payload.slot_id, slot_id);
+                            }
+                            TerminalSlotDropAction::SplitTop
+                            | TerminalSlotDropAction::SplitBottom
+                            | TerminalSlotDropAction::SplitLeft
+                            | TerminalSlotDropAction::SplitRight => {
+                                if let Err(err) = wb.move_terminal_slot_into_split(
+                                    workspace_id,
+                                    payload.slot_id,
+                                    slot_id,
+                                    action,
+                                ) {
+                                    let template = i18n.tr(I18nKey::WsTermTransferFailed)();
+                                    toast.error(template.replace("{error}", &err));
+                                }
+                            }
+                        }
                     }
                 }
                 slot_dnd.clear();
@@ -1510,7 +1649,16 @@ fn TerminalSlotSurface(
                     }
                     key=|(loc, pane_id)| format!("{}-{pane_id}", loc.as_str())
                     children=move |(loc, pane_id)| {
-                        let slug = agent_slug.clone();
+                        let pane_agent = wb
+                            .workspaces()
+                            .with_untracked(|workspaces| {
+                                workspaces
+                                    .iter()
+                                    .find(|workspace| workspace.id == workspace_id)
+                                    .and_then(|workspace| workspace.pane_agent_state(slot_id, pane_id))
+                            })
+                            .unwrap_or_default();
+                        let slug = pane_agent.agent_label.clone();
                         let pane_index = pane_ids
                             .get_untracked()
                             .iter()
@@ -1542,15 +1690,26 @@ fn TerminalSlotSurface(
 
                         let on_split_vertical = Callback::new(move |()| {
                             split_axis.set(TerminalSplitAxis::Vertical);
-                            insert_pane_after(pane_ids, next_pane_id, pane_id);
+                            let agent = pane_agent_for_split(&wb, workspace_id, slot_id, pane_id);
+                            insert_pane_after(pane_ids, pane_agents, next_pane_id, pane_id, agent);
                         });
                         let on_split_horizontal = Callback::new(move |()| {
                             split_axis.set(TerminalSplitAxis::Horizontal);
-                            insert_pane_after(pane_ids, next_pane_id, pane_id);
+                            let agent = pane_agent_for_split(&wb, workspace_id, slot_id, pane_id);
+                            insert_pane_after(pane_ids, pane_agents, next_pane_id, pane_id, agent);
                         });
                         let on_close = Callback::new(move |()| {
                             if pane_ids.with_untracked(|ids| ids.len() > 1) {
+                                let remove_idx = pane_ids
+                                    .with_untracked(|ids| ids.iter().position(|id| *id == pane_id));
                                 pane_ids.update(|ids| ids.retain(|id| *id != pane_id));
+                                if let Some(idx) = remove_idx {
+                                    pane_agents.update(|agents| {
+                                        if idx < agents.len() {
+                                            agents.remove(idx);
+                                        }
+                                    });
+                                }
                             } else {
                                 wb.close_terminal(workspace_id, slot_id);
                             }
@@ -1580,7 +1739,7 @@ fn TerminalSlotSurface(
                         let popout_key = terminal_key.clone();
                         let popout_label = Signal::derive(move || wb.terminal_popout_label(&popout_key));
                         let cwd_store = StoredValue::new(cwd.clone());
-                        let agent_slug_store = StoredValue::new(agent_slug.clone());
+                        let agent_slug_store = StoredValue::new(slug.clone());
                         let title_store = StoredValue::new(title.clone());
                         let terminal_key_store = StoredValue::new(terminal_key.clone());
                         view! {
@@ -1667,25 +1826,60 @@ fn TerminalSlotSurface(
                 />
             </div>
             <Show when=move || is_drop_over.get()>
-                <div class="ws-term-slot__drop-hint" aria-hidden="true">
+                <div class=move || {
+                    terminal_slot_drop_hint_class(
+                        drop_action.get().unwrap_or(TerminalSlotDropAction::Swap),
+                    )
+                } aria-hidden="true">
                     <LxIcon icon=icondata::LuArrowLeftRight width="0.9rem" height="0.9rem" />
-                    <span>{move || i18n.tr(I18nKey::WsTermDropHere)()}</span>
+                    <span>{move || {
+                        i18n.tr(terminal_slot_drop_action_label_key(
+                            drop_action.get().unwrap_or(TerminalSlotDropAction::Swap),
+                        ))()
+                    }}</span>
                 </div>
             </Show>
         </div>
     }
 }
 
-fn insert_pane_after(pane_ids: RwSignal<Vec<u64>>, next_pane_id: RwSignal<u64>, after_id: u64) {
+fn pane_agent_for_split(
+    wb: &WorkbenchService,
+    workspace_id: u64,
+    slot_id: u64,
+    pane_id: u64,
+) -> SlotPaneAgentState {
+    wb.workspaces()
+        .with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|workspace| workspace.id == workspace_id)
+                .and_then(|workspace| workspace.pane_agent_state(slot_id, pane_id))
+        })
+        .unwrap_or_default()
+}
+
+fn insert_pane_after(
+    pane_ids: RwSignal<Vec<u64>>,
+    pane_agents: RwSignal<Vec<SlotPaneAgentState>>,
+    next_pane_id: RwSignal<u64>,
+    after_id: u64,
+    agent: SlotPaneAgentState,
+) {
     let new_id = next_pane_id.get_untracked();
     next_pane_id.set(new_id.saturating_add(1));
+    let insert_at = pane_ids
+        .with_untracked(|ids| ids.iter().position(|id| *id == after_id))
+        .map(|i| i + 1)
+        .unwrap_or_else(|| pane_ids.with_untracked(|ids| ids.len()));
     pane_ids.update(|ids| {
-        let insert_at = ids
-            .iter()
-            .position(|id| *id == after_id)
-            .map(|i| i + 1)
-            .unwrap_or(ids.len());
-        ids.insert(insert_at, new_id);
+        ids.insert(insert_at.min(ids.len()), new_id);
+    });
+    pane_agents.update(|agents| {
+        while agents.len() < insert_at {
+            agents.push(SlotPaneAgentState::default());
+        }
+        agents.insert(insert_at.min(agents.len()), agent);
     });
 }
 
@@ -2456,11 +2650,6 @@ fn terminal_slots(workspace: &WorkspaceEntry) -> Vec<TerminalRenderSlot> {
         .map(|(index, id)| TerminalRenderSlot {
             id,
             index,
-            agent_slug: workspace
-                .slot_agent_labels
-                .get(index)
-                .cloned()
-                .unwrap_or_default(),
         })
         .collect()
 }
@@ -2468,12 +2657,99 @@ fn terminal_slots(workspace: &WorkspaceEntry) -> Vec<TerminalRenderSlot> {
 #[cfg(test)]
 mod swarm_preview_tests {
     use super::strip_ansi_for_preview;
+    use crate::workbench::state::{terminal_grid_item_style, terminal_grid_item_style_for_slot};
 
     #[test]
     fn strips_terminal_escape_sequences_for_preview() {
         let raw = "\u{1b}[1mClaude\u{1b}[0m\r\n\u{1b}]0;title\u{7}ready\u{1b}[38;2;1;2;3m!";
 
         assert_eq!(strip_ansi_for_preview(raw), "Claude\nready!");
+    }
+
+    #[test]
+    fn terminal_grid_distributes_incomplete_final_row() {
+        assert_eq!(
+            terminal_grid_item_style(2, 3, 2, 2),
+            "grid-row:2;grid-column:1 / span 2;"
+        );
+        assert_eq!(
+            terminal_grid_item_style(8, 10, 3, 4),
+            "grid-row:3;grid-column:1 / span 2;"
+        );
+        assert_eq!(
+            terminal_grid_item_style(9, 10, 3, 4),
+            "grid-row:3;grid-column:3 / span 2;"
+        );
+        assert_eq!(
+            terminal_grid_item_style(6, 7, 3, 3),
+            "grid-row:3;grid-column:1 / span 3;"
+        );
+    }
+
+    #[test]
+    fn terminal_grid_assigns_extra_span_to_first_final_row_items() {
+        assert_eq!(
+            terminal_grid_item_style(8, 11, 3, 4),
+            "grid-row:3;grid-column:1 / span 2;"
+        );
+        assert_eq!(
+            terminal_grid_item_style(9, 11, 3, 4),
+            "grid-row:3;grid-column:3;"
+        );
+        assert_eq!(
+            terminal_grid_item_style(10, 11, 3, 4),
+            "grid-row:3;grid-column:4;"
+        );
+        assert_eq!(
+            terminal_grid_item_style(3, 5, 2, 3),
+            "grid-row:2;grid-column:1 / span 2;"
+        );
+        assert_eq!(
+            terminal_grid_item_style(4, 5, 2, 3),
+            "grid-row:2;grid-column:3;"
+        );
+    }
+
+    #[test]
+    fn terminal_grid_places_fifteen_slots_without_implicit_rows() {
+        assert_eq!(
+            terminal_grid_item_style(12, 15, 4, 4),
+            "grid-row:4;grid-column:1 / span 2;"
+        );
+        assert_eq!(
+            terminal_grid_item_style(13, 15, 4, 4),
+            "grid-row:4;grid-column:3;"
+        );
+        assert_eq!(
+            terminal_grid_item_style(14, 15, 4, 4),
+            "grid-row:4;grid-column:4;"
+        );
+    }
+
+    #[test]
+    fn terminal_grid_uses_current_slot_order_after_middle_close() {
+        let slot_ids = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16];
+
+        assert_eq!(
+            terminal_grid_item_style_for_slot(13, &slot_ids, 4, 4),
+            "grid-row:4;grid-column:1 / span 2;"
+        );
+        assert_eq!(
+            terminal_grid_item_style_for_slot(15, &slot_ids, 4, 4),
+            "grid-row:4;grid-column:3;"
+        );
+        assert_eq!(
+            terminal_grid_item_style_for_slot(16, &slot_ids, 4, 4),
+            "grid-row:4;grid-column:4;"
+        );
+        assert_eq!(terminal_grid_item_style_for_slot(14, &slot_ids, 4, 4), "");
+    }
+
+    #[test]
+    fn terminal_grid_does_not_span_full_or_multi_item_rows() {
+        assert_eq!(terminal_grid_item_style(1, 2, 1, 2), "");
+        assert_eq!(terminal_grid_item_style(2, 4, 2, 2), "");
+        assert_eq!(terminal_grid_item_style(6, 8, 2, 4), "");
     }
 }
 

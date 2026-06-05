@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Window Popout**: terminals, Memory, Memory Graph, Mermaid file previews, diagram galleries, and File Diff views can now open in real Tauri child windows instead of modal overlays. Popout windows use the BLXCode custom titlebar adapted for child windows, token-based workbench styling, localized labels, and existing view context. Terminal popouts move ownership of the live PTY renderer to the child window and return it to the main grid on close, while duplicate popout requests focus the existing child window.
+- **Terminal drag-to-split**: dragging a terminal onto another terminal in the Workspace Terminals grid now supports edge-drop split actions in addition to the existing center-drop swap. The drop overlay distinguishes **Swap**, **Split Top**, **Split Bottom**, **Split Left**, and **Split Right** zones, and split drops move the source terminal into the target slot as an app-level split pane while preserving the live PTY/session, agent metadata, notification state, focus mapping, and layout refit flow. Existing titlebar split buttons now participate in the same pane metadata model so manually-created panes and drag-created panes resolve terminal-agent labels, models, and effort consistently.
+
+### Fixed
+
+- **Terminal grid compaction after split/close**: the Workspace Terminals grid now derives per-slot grid placement from the current slot order instead of stale render indices, so closing or absorbing a terminal from the middle no longer leaves phantom gaps. Incomplete final rows distribute their remaining columns across the visible slots, including 15-of-16 layouts, and the sidebar workspace mini-grid now reuses the same span calculation so its count preview matches the main grid.
 
 ## [0.5.1] - 2026-06-05
 

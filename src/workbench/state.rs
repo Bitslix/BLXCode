@@ -6,13 +6,14 @@ use crate::config::{
 };
 use crate::tauri_bridge::{
     agent_environment_invalidate, is_tauri_shell, workbench_drop_sessions,
-    workbench_extract_sessions_prefix, workbench_merge_sessions_workspace,
-    workbench_rewrite_terminal_keys, AgentNotification, TimelineDiagram,
+    workbench_extract_sessions_prefix, workbench_merge_sessions_workspace, AgentNotification,
+    TimelineDiagram,
 };
 use crate::workbench::agent_timeline::TimelineDoc;
 use crate::workbench::terminal_agent_profiles::{
     is_supported_terminal_agent_slug, supported_terminal_agent_slugs,
 };
+use crate::workbench::terminal_slot_dnd::TerminalSlotDropAction;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -29,6 +30,51 @@ pub const WORKSPACE_FLEET_AGENT_SLUGS: [&str; 5] =
     ["claude", "codex", "gemini", "opencode", "cursor"];
 
 pub const DEFAULT_AGENT_CHAT_SESSION_ID: &str = "default";
+
+#[must_use]
+pub fn terminal_grid_item_style(
+    index: usize,
+    slot_count: usize,
+    rows: usize,
+    cols: usize,
+) -> String {
+    if rows <= 1 || cols <= 1 || slot_count == 0 {
+        return String::new();
+    }
+    let final_row_items = slot_count % cols;
+    if final_row_items == 0 {
+        return String::new();
+    }
+    let final_row_start = slot_count - final_row_items;
+    if index < final_row_start {
+        return String::new();
+    }
+
+    let item_in_final_row = index - final_row_start;
+    let base_span = cols / final_row_items;
+    let extra_spans = cols % final_row_items;
+    let span = base_span + usize::from(item_in_final_row < extra_spans);
+    let start = 1 + item_in_final_row * base_span + item_in_final_row.min(extra_spans);
+    if span > 1 {
+        format!("grid-row:{rows};grid-column:{start} / span {span};")
+    } else {
+        format!("grid-row:{rows};grid-column:{start};")
+    }
+}
+
+#[must_use]
+pub fn terminal_grid_item_style_for_slot(
+    slot_id: u64,
+    slot_ids: &[u64],
+    rows: usize,
+    cols: usize,
+) -> String {
+    slot_ids
+        .iter()
+        .position(|id| *id == slot_id)
+        .map(|index| terminal_grid_item_style(index, slot_ids.len(), rows, cols))
+        .unwrap_or_default()
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -755,11 +801,51 @@ pub fn workspace_color_from_presets(presets: &[MemoryColorPreset], index: usize)
 
 /// Per-slot terminal split state — survives a restart so the grid of
 /// panes inside each slot is restored exactly as the user left it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SlotPaneAgentState {
+    #[serde(default)]
+    pub agent_label: String,
+    #[serde(default)]
+    pub agent_model: String,
+    #[serde(default)]
+    pub agent_effort: String,
+}
+
+impl SlotPaneAgentState {
+    #[must_use]
+    pub fn with_fallback(&self, fallback: &Self) -> Self {
+        Self {
+            agent_label: field_or_fallback(&self.agent_label, &fallback.agent_label),
+            agent_model: field_or_fallback(&self.agent_model, &fallback.agent_model),
+            agent_effort: field_or_fallback(&self.agent_effort, &fallback.agent_effort),
+        }
+    }
+}
+
+fn field_or_fallback(value: &str, fallback: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        fallback.trim().to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn terminal_key_slot_pane(key: &str) -> Option<(u64, u64)> {
+    let mut parts = key.split(':');
+    let _storage = parts.next()?;
+    let slot_id = parts.next()?.parse::<u64>().ok()?;
+    let pane_id = parts.next()?.parse::<u64>().ok()?;
+    Some((slot_id, pane_id))
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SlotPaneState {
     pub axis: TerminalSplitAxis,
     pub pane_ids: Vec<u64>,
     pub next_pane_id: u64,
+    #[serde(default)]
+    pub pane_agents: Vec<SlotPaneAgentState>,
 }
 
 impl SlotPaneState {
@@ -772,6 +858,19 @@ impl SlotPaneState {
             axis: TerminalSplitAxis::Vertical,
             pane_ids: vec![first],
             next_pane_id: first.saturating_add(1),
+            pane_agents: Vec::new(),
+        }
+    }
+
+    pub fn normalize_pane_agents(&mut self, fallback: &SlotPaneAgentState) {
+        self.pane_agents.truncate(self.pane_ids.len());
+        while self.pane_agents.len() < self.pane_ids.len() {
+            self.pane_agents.push(fallback.clone());
+        }
+        for agent in &mut self.pane_agents {
+            if !agent.agent_label.trim().is_empty() {
+                *agent = agent.with_fallback(fallback);
+            }
         }
     }
 }
@@ -784,6 +883,52 @@ impl WorkspaceEntry {
     #[must_use]
     pub fn new_storage_key() -> String {
         uuid::Uuid::new_v4().simple().to_string()
+    }
+
+    fn slot_agent_state_at(&self, slot_idx: usize) -> SlotPaneAgentState {
+        SlotPaneAgentState {
+            agent_label: self
+                .slot_agent_labels
+                .get(slot_idx)
+                .cloned()
+                .unwrap_or_default(),
+            agent_model: self
+                .slot_agent_models
+                .get(slot_idx)
+                .cloned()
+                .unwrap_or_default(),
+            agent_effort: self
+                .slot_agent_efforts
+                .get(slot_idx)
+                .cloned()
+                .unwrap_or_default(),
+        }
+    }
+
+    #[must_use]
+    pub fn pane_agent_state(&self, slot_id: u64, pane_id: u64) -> Option<SlotPaneAgentState> {
+        let slot_idx = self.slot_ids.iter().position(|id| *id == slot_id)?;
+        let fallback = self.slot_agent_state_at(slot_idx);
+        let mut pane_state = self
+            .slot_pane_states
+            .get(slot_idx)
+            .cloned()
+            .unwrap_or_else(|| SlotPaneState::default_for_slot(slot_id));
+        pane_state.normalize_pane_agents(&fallback);
+        let pane_idx = pane_state.pane_ids.iter().position(|id| *id == pane_id)?;
+        Some(
+            pane_state
+                .pane_agents
+                .get(pane_idx)
+                .map(|agent| {
+                    if agent.agent_label.trim().is_empty() {
+                        agent.clone()
+                    } else {
+                        agent.with_fallback(&fallback)
+                    }
+                })
+                .unwrap_or(fallback),
+        )
     }
 
     #[must_use]
@@ -1838,6 +1983,34 @@ pub struct TerminalSlotMove {
     pub agent_slug: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TerminalSlotSplitMove {
+    pub workspace_id: u64,
+    pub storage_key: String,
+    pub source_slot_id: u64,
+    pub target_slot_id: u64,
+    pub old_pane_id: u64,
+    pub new_pane_id: u64,
+    pub action: TerminalSlotDropAction,
+    pub agent_slug: String,
+}
+
+impl TerminalSlotSplitMove {
+    #[must_use]
+    pub fn terminal_key_pair(&self) -> (String, String) {
+        (
+            format!(
+                "{}:{}:{}",
+                self.storage_key, self.source_slot_id, self.old_pane_id
+            ),
+            format!(
+                "{}:{}:{}",
+                self.storage_key, self.target_slot_id, self.new_pane_id
+            ),
+        )
+    }
+}
+
 impl TerminalSlotMove {
     /// `(old_terminal_key, new_terminal_key)` pairs derived from the move,
     /// in pane order. Both the PTY/session live registries and the on-disk
@@ -2132,13 +2305,11 @@ impl WorkbenchService {
 
     fn agent_slug_for_terminal_key(&self, key: &str) -> Option<String> {
         let storage_key = super::agent_accent::terminal_key_storage_key(key)?;
-        let slot_id = key.split(':').nth(1)?.parse::<u64>().ok()?;
+        let (slot_id, pane_id) = terminal_key_slot_pane(key)?;
         self.workspaces.with_untracked(|list| {
             let ws = list.iter().find(|w| w.storage_key == storage_key)?;
-            let idx = ws.slot_ids.iter().position(|&id| id == slot_id)?;
-            ws.slot_agent_labels
-                .get(idx)
-                .map(|s| s.trim().to_ascii_lowercase())
+            ws.pane_agent_state(slot_id, pane_id)
+                .map(|agent| agent.agent_label.trim().to_ascii_lowercase())
                 .filter(|s| !s.is_empty())
         })
     }
@@ -2158,13 +2329,11 @@ impl WorkbenchService {
     /// entries return `None` so the agent's own default model is used.
     pub fn agent_model_for_terminal_key(&self, terminal_key: &str) -> Option<String> {
         let storage_key = super::agent_accent::terminal_key_storage_key(terminal_key)?;
-        let slot_id = terminal_key.split(':').nth(1)?.parse::<u64>().ok()?;
+        let (slot_id, pane_id) = terminal_key_slot_pane(terminal_key)?;
         self.workspaces.with_untracked(|list| {
             let ws = list.iter().find(|w| w.storage_key == storage_key)?;
-            let idx = ws.slot_ids.iter().position(|&id| id == slot_id)?;
-            ws.slot_agent_models
-                .get(idx)
-                .map(|s| s.trim().to_string())
+            ws.pane_agent_state(slot_id, pane_id)
+                .map(|agent| agent.agent_model.trim().to_string())
                 .filter(|s| !s.is_empty())
         })
     }
@@ -2174,13 +2343,11 @@ impl WorkbenchService {
     /// used.
     pub fn agent_effort_for_terminal_key(&self, terminal_key: &str) -> Option<String> {
         let storage_key = super::agent_accent::terminal_key_storage_key(terminal_key)?;
-        let slot_id = terminal_key.split(':').nth(1)?.parse::<u64>().ok()?;
+        let (slot_id, pane_id) = terminal_key_slot_pane(terminal_key)?;
         self.workspaces.with_untracked(|list| {
             let ws = list.iter().find(|w| w.storage_key == storage_key)?;
-            let idx = ws.slot_ids.iter().position(|&id| id == slot_id)?;
-            ws.slot_agent_efforts
-                .get(idx)
-                .map(|s| s.trim().to_string())
+            ws.pane_agent_state(slot_id, pane_id)
+                .map(|agent| agent.agent_effort.trim().to_string())
                 .filter(|s| !s.is_empty())
         })
     }
@@ -2198,21 +2365,19 @@ impl WorkbenchService {
                 return;
             };
             for (idx, &slot_id) in ws.slot_ids.iter().enumerate() {
-                let slot_agent = ws
-                    .slot_agent_labels
-                    .get(idx)
-                    .map(|s| s.trim().to_ascii_lowercase())
-                    .unwrap_or_default();
-                if slot_agent != agent_slug {
-                    continue;
-                }
                 let panes = ws
                     .slot_pane_states
                     .get(idx)
                     .map(|state| state.pane_ids.clone())
                     .unwrap_or_else(|| SlotPaneState::default_for_slot(slot_id).pane_ids);
                 for pane_id in panes {
-                    keys.push(format!("{}:{}:{}", ws.storage_key, slot_id, pane_id));
+                    let pane_agent = ws
+                        .pane_agent_state(slot_id, pane_id)
+                        .map(|agent| agent.agent_label.trim().to_ascii_lowercase())
+                        .unwrap_or_default();
+                    if pane_agent == agent_slug {
+                        keys.push(format!("{}:{}:{}", ws.storage_key, slot_id, pane_id));
+                    }
                 }
             }
         });
@@ -2317,19 +2482,15 @@ impl WorkbenchService {
         let Some(storage_key) = super::agent_accent::terminal_key_storage_key(key) else {
             return false;
         };
-        let Some(slot_id) = key.split(':').nth(1).and_then(|s| s.parse::<u64>().ok()) else {
+        let Some((slot_id, pane_id)) = terminal_key_slot_pane(key) else {
             return false;
         };
         self.workspaces.with_untracked(|list| {
             let Some(ws) = list.iter().find(|w| w.storage_key == storage_key) else {
                 return false;
             };
-            let Some(idx) = ws.slot_ids.iter().position(|&id| id == slot_id) else {
-                return false;
-            };
-            ws.slot_agent_labels
-                .get(idx)
-                .map(|s| !s.trim().is_empty())
+            ws.pane_agent_state(slot_id, pane_id)
+                .map(|agent| !agent.agent_label.trim().is_empty())
                 .unwrap_or(false)
         })
     }
@@ -3642,6 +3803,35 @@ impl WorkbenchService {
         });
     }
 
+    pub fn move_terminal_slot_into_split(
+        &self,
+        workspace_id: u64,
+        source_slot_id: u64,
+        target_slot_id: u64,
+        action: TerminalSlotDropAction,
+    ) -> Result<TerminalSlotSplitMove, String> {
+        let mut result: Result<TerminalSlotSplitMove, String> = Err("not run".into());
+        self.workspaces.update(|workspaces| {
+            result = workspaces
+                .iter_mut()
+                .find(|w| w.id == workspace_id)
+                .ok_or_else(|| "workspace not found".to_string())
+                .and_then(|workspace| {
+                    move_workspace_slot_into_split(
+                        workspace,
+                        source_slot_id,
+                        target_slot_id,
+                        action,
+                    )
+                });
+        });
+        let mv = result?;
+        let pair = mv.terminal_key_pair();
+        self.begin_terminal_move(&[pair]);
+        self.bump_terminal_layout();
+        Ok(mv)
+    }
+
     /// True while the source cell's `terminal_key` is mid-transfer. The
     /// cell's `on_cleanup` consults this to decide whether to `pty_kill`
     /// the underlying session — adopted PTYs must outlive the unmount.
@@ -3721,33 +3911,41 @@ impl WorkbenchService {
         });
         // Tauri-side key rewrite — fire and forget; failure is non-fatal
         // (resume/unread will fall back to the next regular sync).
-        if is_tauri_shell() {
-            let owned: Vec<(String, String)> = pairs.to_vec();
-            spawn_local(async move {
-                if let Err(err) = workbench_rewrite_terminal_keys(owned).await {
-                    leptos::logging::warn!("workbench_rewrite_terminal_keys: {err}");
-                }
-            });
+        #[cfg(target_arch = "wasm32")]
+        {
+            if is_tauri_shell() {
+                let owned: Vec<(String, String)> = pairs.to_vec();
+                spawn_local(async move {
+                    if let Err(err) =
+                        crate::tauri_bridge::workbench_rewrite_terminal_keys(owned).await
+                    {
+                        leptos::logging::warn!("workbench_rewrite_terminal_keys: {err}");
+                    }
+                });
+            }
         }
         // Drop guards after a brief window so a never-mounted target
         // (e.g. workspace closed mid-transfer) doesn't keep leaking the
         // skip-kill bit forever.
-        let svc = *self;
-        let old_keys: Vec<String> = pairs.iter().map(|(o, _)| o.clone()).collect();
-        let new_keys: Vec<String> = pairs.iter().map(|(_, n)| n.clone()).collect();
-        spawn_local(async move {
-            TimeoutFuture::new(5_000).await;
-            svc.terminal_move_guards.update(|m| {
-                for k in &old_keys {
-                    m.remove(k);
-                }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let svc = *self;
+            let old_keys: Vec<String> = pairs.iter().map(|(o, _)| o.clone()).collect();
+            let new_keys: Vec<String> = pairs.iter().map(|(_, n)| n.clone()).collect();
+            spawn_local(async move {
+                TimeoutFuture::new(5_000).await;
+                svc.terminal_move_guards.update(|m| {
+                    for k in &old_keys {
+                        m.remove(k);
+                    }
+                });
+                svc.terminal_adopt_pending.update(|m| {
+                    for k in &new_keys {
+                        m.remove(k);
+                    }
+                });
             });
-            svc.terminal_adopt_pending.update(|m| {
-                for k in &new_keys {
-                    m.remove(k);
-                }
-            });
-        });
+        }
     }
 
     /// Move a terminal slot from one workspace to another. Reuses the
@@ -4580,7 +4778,10 @@ impl WorkbenchService {
                     .slot_pane_states
                     .push(SlotPaneState::default_for_slot(sid));
             }
+            let fallback = workspace.slot_agent_state_at(idx);
             if let Some(slot) = workspace.slot_pane_states.get_mut(idx) {
+                let mut state = state;
+                state.normalize_pane_agents(&fallback);
                 if *slot != state {
                     *slot = state;
                 }
@@ -5802,6 +6003,125 @@ fn swap_workspace_slots(workspace: &mut WorkspaceEntry, slot_a: u64, slot_b: u64
     true
 }
 
+fn move_workspace_slot_into_split(
+    workspace: &mut WorkspaceEntry,
+    source_slot_id: u64,
+    target_slot_id: u64,
+    action: TerminalSlotDropAction,
+) -> Result<TerminalSlotSplitMove, String> {
+    if source_slot_id == target_slot_id {
+        return Err("cannot split a terminal into itself".into());
+    }
+    let Some(source_idx) = workspace
+        .slot_ids
+        .iter()
+        .position(|id| *id == source_slot_id)
+    else {
+        return Err("source slot not found".into());
+    };
+    let Some(target_idx) = workspace
+        .slot_ids
+        .iter()
+        .position(|id| *id == target_slot_id)
+    else {
+        return Err("target slot not found".into());
+    };
+    if workspace.slot_ids.len() <= 1 {
+        return Err("workspace must keep at least one target slot".into());
+    }
+    while workspace.slot_agent_labels.len() < workspace.slot_ids.len() {
+        workspace.slot_agent_labels.push(String::new());
+    }
+    while workspace.slot_agent_models.len() < workspace.slot_ids.len() {
+        workspace.slot_agent_models.push(String::new());
+    }
+    while workspace.slot_agent_efforts.len() < workspace.slot_ids.len() {
+        workspace.slot_agent_efforts.push(String::new());
+    }
+    while workspace.slot_pane_states.len() < workspace.slot_ids.len() {
+        let sid = workspace.slot_ids[workspace.slot_pane_states.len()];
+        workspace
+            .slot_pane_states
+            .push(SlotPaneState::default_for_slot(sid));
+    }
+
+    let mut source_state = workspace
+        .slot_pane_states
+        .get(source_idx)
+        .cloned()
+        .unwrap_or_else(|| SlotPaneState::default_for_slot(source_slot_id));
+    let source_fallback = workspace.slot_agent_state_at(source_idx);
+    source_state.normalize_pane_agents(&source_fallback);
+    if source_state.pane_ids.len() != 1 {
+        return Err("source slot must have exactly one pane".into());
+    }
+    let old_pane_id = source_state.pane_ids[0];
+    let source_agent = workspace
+        .pane_agent_state(source_slot_id, old_pane_id)
+        .unwrap_or(source_fallback);
+
+    let mut target_state = workspace
+        .slot_pane_states
+        .get(target_idx)
+        .cloned()
+        .unwrap_or_else(|| SlotPaneState::default_for_slot(target_slot_id));
+    let target_fallback = workspace.slot_agent_state_at(target_idx);
+    target_state.normalize_pane_agents(&target_fallback);
+    let insert_at = match action {
+        TerminalSlotDropAction::SplitTop | TerminalSlotDropAction::SplitLeft => 0,
+        TerminalSlotDropAction::SplitBottom | TerminalSlotDropAction::SplitRight => {
+            target_state.pane_ids.len()
+        }
+        TerminalSlotDropAction::Swap => {
+            return Err("swap is not a split action".into());
+        }
+    };
+    target_state.axis = match action {
+        TerminalSlotDropAction::SplitTop | TerminalSlotDropAction::SplitBottom => {
+            TerminalSplitAxis::Horizontal
+        }
+        TerminalSlotDropAction::SplitLeft | TerminalSlotDropAction::SplitRight => {
+            TerminalSplitAxis::Vertical
+        }
+        TerminalSlotDropAction::Swap => unreachable!("swap returned above"),
+    };
+    let mut new_pane_id = target_state.next_pane_id.max(1);
+    while target_state.pane_ids.contains(&new_pane_id) {
+        new_pane_id = new_pane_id.saturating_add(1);
+    }
+    target_state.next_pane_id = new_pane_id.saturating_add(1);
+    target_state.pane_ids.insert(insert_at, new_pane_id);
+    target_state.pane_agents.insert(insert_at, source_agent.clone());
+
+    workspace.slot_ids.remove(source_idx);
+    workspace.slot_agent_labels.remove(source_idx);
+    workspace.slot_agent_models.remove(source_idx);
+    workspace.slot_agent_efforts.remove(source_idx);
+    workspace.slot_pane_states.remove(source_idx);
+    workspace.slot_name_overrides.remove(&source_slot_id);
+
+    let Some(target_idx_after_remove) = workspace
+        .slot_ids
+        .iter()
+        .position(|id| *id == target_slot_id)
+    else {
+        return Err("target slot removed unexpectedly".into());
+    };
+    workspace.slot_pane_states[target_idx_after_remove] = target_state;
+    workspace.set_count_and_dims(workspace.slot_ids.len() as u8);
+
+    Ok(TerminalSlotSplitMove {
+        workspace_id: workspace.id,
+        storage_key: workspace.storage_key.clone(),
+        source_slot_id,
+        target_slot_id,
+        old_pane_id,
+        new_pane_id,
+        action,
+        agent_slug: source_agent.agent_label,
+    })
+}
+
 /// Pure transfer of a slot between two workspaces, validating inputs and
 /// returning the resulting [`TerminalSlotMove`]. Callers wire any
 /// side-effects (PTY adoption, key rewrites, focus changes) themselves.
@@ -6329,11 +6649,364 @@ mod terminal_slot_tests {
         assert_eq!(ws.slot_ids, vec![1, 2]);
     }
 
+    #[test]
+    fn move_into_split_removes_source_and_inserts_target_pane() {
+        let mut ws = mk_slots(3);
+        let target_first_pane = ws.slot_pane_states[2].pane_ids[0];
+
+        let mv = move_workspace_slot_into_split(
+            &mut ws,
+            1,
+            3,
+            TerminalSlotDropAction::SplitRight,
+        )
+        .expect("move into split");
+
+        assert_eq!(ws.slot_ids, vec![2, 3]);
+        assert_eq!(ws.terminal_count, 2);
+        assert_eq!(ws.slot_agent_labels, vec!["label1", "label2"]);
+        assert_eq!(mv.source_slot_id, 1);
+        assert_eq!(mv.target_slot_id, 3);
+        assert_eq!(mv.old_pane_id, 1001);
+        assert_eq!(mv.agent_slug, "label0");
+        assert_eq!(
+            mv.terminal_key_pair(),
+            (
+                "ws-storage:1:1001".to_string(),
+                format!("ws-storage:3:{}", mv.new_pane_id)
+            )
+        );
+
+        let target = ws.slot_pane_states.last().expect("target pane state");
+        assert_eq!(target.axis, TerminalSplitAxis::Vertical);
+        assert_eq!(target.pane_ids, vec![target_first_pane, mv.new_pane_id]);
+        assert_eq!(target.pane_agents[1].agent_label, "label0");
+        assert_eq!(target.pane_agents[1].agent_model, "model0");
+        assert_eq!(target.pane_agents[1].agent_effort, "effort0");
+    }
+
+    #[test]
+    fn move_into_split_applies_directional_axis_and_insert_order() {
+        let cases = [
+            (
+                TerminalSlotDropAction::SplitTop,
+                TerminalSplitAxis::Horizontal,
+                true,
+            ),
+            (
+                TerminalSlotDropAction::SplitBottom,
+                TerminalSplitAxis::Horizontal,
+                false,
+            ),
+            (
+                TerminalSlotDropAction::SplitLeft,
+                TerminalSplitAxis::Vertical,
+                true,
+            ),
+            (
+                TerminalSlotDropAction::SplitRight,
+                TerminalSplitAxis::Vertical,
+                false,
+            ),
+        ];
+
+        for (action, expected_axis, inserts_before_target) in cases {
+            let mut ws = mk_slots(2);
+            let target_first_pane = ws.slot_pane_states[1].pane_ids[0];
+            let mv =
+                move_workspace_slot_into_split(&mut ws, 1, 2, action).expect("move into split");
+            let target = ws.slot_pane_states.last().expect("target pane state");
+
+            assert_eq!(target.axis, expected_axis);
+            let expected_panes = if inserts_before_target {
+                vec![mv.new_pane_id, target_first_pane]
+            } else {
+                vec![target_first_pane, mv.new_pane_id]
+            };
+            assert_eq!(target.pane_ids, expected_panes);
+        }
+    }
+
+    #[test]
+    fn move_into_split_rejects_invalid_inputs() {
+        let mut ws = mk_slots(2);
+        assert!(move_workspace_slot_into_split(
+            &mut ws,
+            1,
+            1,
+            TerminalSlotDropAction::SplitRight,
+        )
+        .is_err());
+        assert!(move_workspace_slot_into_split(
+            &mut ws,
+            99,
+            2,
+            TerminalSlotDropAction::SplitRight,
+        )
+        .is_err());
+        assert!(move_workspace_slot_into_split(
+            &mut ws,
+            1,
+            99,
+            TerminalSlotDropAction::SplitRight,
+        )
+        .is_err());
+        assert!(move_workspace_slot_into_split(&mut ws, 1, 2, TerminalSlotDropAction::Swap)
+            .is_err());
+    }
+
+    #[test]
+    fn move_into_split_rejects_multi_pane_source() {
+        let mut ws = mk_slots(2);
+        ws.slot_pane_states[0].pane_ids.push(1002);
+
+        let result = move_workspace_slot_into_split(
+            &mut ws,
+            1,
+            2,
+            TerminalSlotDropAction::SplitBottom,
+        );
+
+        assert!(result.is_err());
+        assert_eq!(ws.slot_ids, vec![1, 2]);
+    }
+
+    #[test]
+    fn service_move_terminal_slot_into_split_updates_workspace() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            svc.workspaces.set(vec![mk_slots(2)]);
+            let before_tick = svc.terminal_layout_tick.get_untracked();
+
+            let mv = svc
+                .move_terminal_slot_into_split(1, 1, 2, TerminalSlotDropAction::SplitRight)
+                .expect("service split move");
+
+            assert_eq!(mv.source_slot_id, 1);
+            let ws = svc.workspaces.with_untracked(|items| items[0].clone());
+            assert_eq!(ws.slot_ids, vec![2]);
+            assert_eq!(ws.slot_pane_states[0].pane_ids.len(), 2);
+            assert_ne!(svc.terminal_layout_tick.get_untracked(), before_tick);
+        });
+    }
+
+    #[test]
+    fn service_move_terminal_slot_into_split_sets_adoption_guards() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            svc.workspaces.set(vec![mk_slots(2)]);
+            let old_key = "ws-storage:1:1001".to_string();
+            svc.register_pty_session(old_key.clone(), 42);
+            svc.notifications.update(|m| {
+                m.insert(old_key.clone(), 7);
+            });
+            svc.focused_terminal_by_workspace.update(|m| {
+                m.insert("ws-storage".into(), old_key.clone());
+            });
+
+            let mv = svc
+                .move_terminal_slot_into_split(1, 1, 2, TerminalSlotDropAction::SplitRight)
+                .expect("service split move");
+            let (old, new) = mv.terminal_key_pair();
+
+            assert_eq!(old, old_key);
+            assert_eq!(svc.pty_sessions.with_untracked(|m| m.get(&new).copied()), Some(42));
+            assert!(!svc.pty_sessions.with_untracked(|m| m.contains_key(&old)));
+            assert_eq!(
+                svc.terminal_adopt_pending
+                    .with_untracked(|m| m.get(&new).copied()),
+                Some(42)
+            );
+            assert_eq!(
+                svc.terminal_move_guards
+                    .with_untracked(|m| m.get(&old).cloned()),
+                Some(new.clone())
+            );
+            assert_eq!(svc.notifications.with_untracked(|m| m.get(&new).copied()), Some(7));
+            assert_eq!(
+                svc.focused_terminal_by_workspace
+                    .with_untracked(|m| m.get("ws-storage").cloned()),
+                Some(new)
+            );
+        });
+    }
+
+    #[test]
+    fn service_move_terminal_slot_into_split_consumes_adopted_pty_once() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            svc.workspaces.set(vec![mk_slots(2)]);
+            let old_key = "ws-storage:1:1001".to_string();
+            svc.register_pty_session(old_key.clone(), 42);
+
+            let mv = svc
+                .move_terminal_slot_into_split(1, 1, 2, TerminalSlotDropAction::SplitRight)
+                .expect("service split move");
+            let (old, new) = mv.terminal_key_pair();
+
+            assert_eq!(old, old_key);
+            assert_eq!(svc.take_terminal_adopt(&new), Some(42));
+            assert_eq!(svc.take_terminal_adopt(&new), None);
+            assert!(!svc
+                .terminal_move_guards
+                .with_untracked(|m| m.contains_key(&old)));
+        });
+    }
+
+    #[test]
+    fn terminal_key_agent_launch_metadata_uses_pane_agent_state() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            let mut ws = mk_slots(1);
+            let pane_id = ws.slot_pane_states[0].pane_ids[0];
+            ws.slot_pane_states[0].pane_agents = vec![SlotPaneAgentState {
+                agent_label: "codex".into(),
+                agent_model: "gpt-5".into(),
+                agent_effort: "high".into(),
+            }];
+            svc.workspaces.set(vec![ws]);
+            let key = format!("ws-storage:1:{pane_id}");
+
+            assert_eq!(svc.agent_slug_for_terminal_key(&key), Some("codex".into()));
+            assert_eq!(
+                svc.agent_model_for_terminal_key(&key),
+                Some("gpt-5".into())
+            );
+            assert_eq!(
+                svc.agent_effort_for_terminal_key(&key),
+                Some("high".into())
+            );
+        });
+    }
+
+    #[test]
+    fn notification_ack_keys_follow_pane_agent_metadata() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            let mut ws = mk_slots(1);
+            ws.slot_pane_states[0] = SlotPaneState {
+                axis: TerminalSplitAxis::Vertical,
+                pane_ids: vec![1001, 1002],
+                next_pane_id: 1003,
+                pane_agents: vec![
+                    SlotPaneAgentState {
+                        agent_label: "codex".into(),
+                        agent_model: String::new(),
+                        agent_effort: String::new(),
+                    },
+                    SlotPaneAgentState {
+                        agent_label: "claude".into(),
+                        agent_model: String::new(),
+                        agent_effort: String::new(),
+                    },
+                ],
+            };
+            svc.workspaces.set(vec![ws]);
+
+            let keys = svc.notification_ack_keys_for_terminal("ws-storage:1:1001");
+
+            assert!(keys.contains(&"ws-storage:1:1001".to_string()));
+            assert!(!keys.contains(&"ws-storage:1:1002".to_string()));
+        });
+    }
+
+    #[test]
+    fn live_terminal_keys_include_split_move_panes() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            svc.workspaces.set(vec![mk_slots(2)]);
+
+            let mv = svc
+                .move_terminal_slot_into_split(1, 1, 2, TerminalSlotDropAction::SplitRight)
+                .expect("split move");
+            let (_old, new) = mv.terminal_key_pair();
+            let keys = svc.live_terminal_keys();
+
+            assert!(keys.contains(&"ws-storage:2:2001".to_string()));
+            assert!(keys.contains(&new));
+            assert!(!keys.contains(&"ws-storage:1:1001".to_string()));
+        });
+    }
+
     fn mk_slots_with_id(id: u64, n: u8) -> WorkspaceEntry {
         let mut ws = mk_slots(n);
         ws.id = id;
         ws.storage_key = format!("ws-storage-{id}");
         ws
+    }
+
+    #[test]
+    fn slot_pane_state_deserializes_without_pane_agents() {
+        let value = serde_json::json!({
+            "axis": "Vertical",
+            "pane_ids": [1001],
+            "next_pane_id": 1002
+        });
+
+        let state: SlotPaneState = serde_json::from_value(value).unwrap();
+
+        assert_eq!(state.axis, TerminalSplitAxis::Vertical);
+        assert_eq!(state.pane_ids, vec![1001]);
+        assert_eq!(state.next_pane_id, 1002);
+        assert!(state.pane_agents.is_empty());
+    }
+
+    #[test]
+    fn pane_agent_state_falls_back_to_slot_agent_arrays() {
+        let ws = mk_slots(2);
+        let pane_id = SlotPaneState::default_for_slot(2).pane_ids[0];
+
+        let agent = ws.pane_agent_state(2, pane_id).expect("pane agent");
+
+        assert_eq!(agent.agent_label, "label1");
+        assert_eq!(agent.agent_model, "model1");
+        assert_eq!(agent.agent_effort, "effort1");
+    }
+
+    #[test]
+    fn pane_agent_state_uses_pane_values_with_field_fallback() {
+        let mut ws = mk_slots(1);
+        let pane_id = ws.slot_pane_states[0].pane_ids[0];
+        ws.slot_pane_states[0].pane_agents = vec![SlotPaneAgentState {
+            agent_label: "codex".into(),
+            agent_model: String::new(),
+            agent_effort: "high".into(),
+        }];
+
+        let agent = ws.pane_agent_state(1, pane_id).expect("pane agent");
+
+        assert_eq!(agent.agent_label, "codex");
+        assert_eq!(agent.agent_model, "model0");
+        assert_eq!(agent.agent_effort, "high");
+    }
+
+    #[test]
+    fn normalize_pane_agents_aligns_metadata_to_panes() {
+        let mut state = SlotPaneState {
+            axis: TerminalSplitAxis::Vertical,
+            pane_ids: vec![1, 2],
+            next_pane_id: 3,
+            pane_agents: vec![
+                SlotPaneAgentState {
+                    agent_label: "codex".into(),
+                    agent_model: String::new(),
+                    agent_effort: "high".into(),
+                }
+            ],
+        };
+        let fallback = SlotPaneAgentState {
+            agent_label: "claude".into(),
+            agent_model: "sonnet".into(),
+            agent_effort: "medium".into(),
+        };
+
+        state.normalize_pane_agents(&fallback);
+
+        assert_eq!(state.pane_agents.len(), 2);
+        assert_eq!(state.pane_agents[0].agent_label, "codex");
+        assert_eq!(state.pane_agents[0].agent_model, "sonnet");
+        assert_eq!(state.pane_agents[0].agent_effort, "high");
+        assert_eq!(state.pane_agents[1], fallback);
     }
 
     #[test]
@@ -6394,6 +7067,7 @@ mod terminal_slot_tests {
                 axis: TerminalSplitAxis::Vertical,
                 pane_ids: vec![7, 11],
                 next_pane_id: 12,
+                pane_agents: Vec::new(),
             };
         }
         let mv = transfer_workspace_slot(&mut list, 1, 2, 2).expect("transfer ok");

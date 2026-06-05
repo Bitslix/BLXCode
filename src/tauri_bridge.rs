@@ -2476,6 +2476,10 @@ pub async fn workbench_merge_sessions_workspace(
     .await
 }
 
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    expect(dead_code, reason = "frontend invokes this only from the Tauri WebView")
+)]
 pub async fn workbench_rewrite_terminal_keys(pairs: Vec<(String, String)>) -> Result<(), String> {
     #[derive(Serialize)]
     struct A {

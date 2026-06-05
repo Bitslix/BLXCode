@@ -30,6 +30,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 
 ### Current Repo Facts
 
+- Dirty-tree guard at implementation start: `git status --short --untracked-files=all` was clean on branch `feature/extend-terminal-dnd`; no unrelated uncommitted files need to be protected from task commits.
 - DnD helper module: `src/workbench/terminal_slot_dnd.rs`.
 - Drag preview module: `src/workbench/terminal_slot_drag_overlay.rs`.
 - Terminal cell component: `src/workbench/terminal_cell.rs`.
@@ -189,51 +190,52 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 
 ### P0 Analysis And Safety
 
-- [ ] `dnd-state-audit` - Re-read current `TerminalSlotSurface`, `SlotPaneState`, and PTY adoption code before editing
-- [ ] `dirty-tree-guard` - Record current unrelated modified files and avoid reverting user/in-flight changes
-- [ ] `drop-intent-spec` - Document final geometry thresholds for swap vs split zones in code comments or tests
+- [x] `dnd-state-audit` - Re-read current `TerminalSlotSurface`, `SlotPaneState`, and PTY adoption code before editing
+- [x] `dirty-tree-guard` - Record current unrelated modified files and avoid reverting user/in-flight changes
+- [x] `drop-intent-spec` - Document final geometry thresholds for swap vs split zones in code comments or tests
 
 ### P1 State Model
 
-- [ ] `pane-agent-state-type` - Add serde-compatible per-pane agent metadata type
-- [ ] `slot-pane-state-compat` - Extend `SlotPaneState` with defaulted pane metadata while keeping old snapshots valid
-- [ ] `pane-agent-resolver` - Add helper to resolve pane agent/model/effort with slot-level fallback
-- [ ] `pane-state-normalization` - Add small helpers for aligned pane id and pane metadata mutation
+- [x] `pane-agent-state-type` - Add serde-compatible per-pane agent metadata type
+- [x] `slot-pane-state-compat` - Extend `SlotPaneState` with defaulted pane metadata while keeping old snapshots valid
+- [x] `pane-agent-resolver` - Add helper to resolve pane agent/model/effort with slot-level fallback
+- [x] `pane-state-normalization` - Add small helpers for aligned pane id and pane metadata mutation
 
 ### P2 Move Into Split Operation
 
-- [ ] `split-drop-action-type` - Add Rust enum for `Swap`, `SplitTop`, `SplitBottom`, `SplitLeft`, and `SplitRight`
-- [ ] `move-into-split-helper` - Add pure state helper that removes source slot and inserts it as target pane
-- [ ] `move-into-split-errors` - Return explicit errors for same slot, missing slots, multi-pane source, and invalid workspace state
-- [ ] `move-into-split-keypair` - Return old-to-new terminal key pair for the moved pane
-- [ ] `move-into-split-service` - Add `WorkbenchService::move_terminal_slot_into_split` wrapper
-- [ ] `move-into-split-adoption` - Reuse existing move-guard/adopt and Tauri key rewrite flow for same-workspace split moves
-- [ ] `move-into-split-layout-tick` - Bump terminal layout after the move so xterm panes refit
+- [x] `split-drop-action-type` - Add Rust enum for `Swap`, `SplitTop`, `SplitBottom`, `SplitLeft`, and `SplitRight`
+- [x] `move-into-split-helper` - Add pure state helper that removes source slot and inserts it as target pane
+- [x] `move-into-split-errors` - Return explicit errors for same slot, missing slots, multi-pane source, and invalid workspace state
+- [x] `move-into-split-keypair` - Return old-to-new terminal key pair for the moved pane
+- [x] `move-into-split-service` - Add `WorkbenchService::move_terminal_slot_into_split` wrapper
+- [x] `move-into-split-adoption` - Reuse existing move-guard/adopt and Tauri key rewrite flow for same-workspace split moves
+- [x] `move-into-split-layout-tick` - Bump terminal layout after the move so xterm panes refit
 
 ### P3 Rendering And Runtime Lookups
 
-- [ ] `render-pane-agent` - Render each pane with its effective agent slug instead of only the parent slot slug
-- [ ] `launch-pane-agent` - Ensure adopted and freshly spawned panes resolve the correct model and effort from terminal key
-- [ ] `notification-pane-agent` - Update notification liveness and ack helpers to understand pane-level agent metadata
-- [ ] `live-keys-pane-meta` - Ensure live terminal keys and pruning still include every pane after split moves
-- [ ] `manual-split-pane-meta` - Update existing split buttons so manually created panes get deterministic metadata
+- [x] `render-pane-agent` - Render each pane with its effective agent slug instead of only the parent slot slug
+- [x] `launch-pane-agent` - Ensure adopted and freshly spawned panes resolve the correct model and effort from terminal key
+- [x] `notification-pane-agent` - Update notification liveness and ack helpers to understand pane-level agent metadata
+- [x] `live-keys-pane-meta` - Ensure live terminal keys and pruning still include every pane after split moves
+- [x] `manual-split-pane-meta` - Update existing split buttons so manually created panes get deterministic metadata
 
 ### P4 Drag UI
 
-- [ ] `dnd-ghost-action` - Replace ghost state with target slot plus drop action
-- [ ] `dnd-action-from-geometry` - Compute swap/split direction from dragover cursor and target rect
-- [ ] `dnd-drop-dispatch` - Dispatch swap for center drops and move-into-split for edge drops
-- [ ] `dnd-drop-validation` - Preserve WebView2-safe dragenter/dragover acceptance and final drop revalidation
-- [ ] `split-drop-overlay-css` - Add directional CSS overlays matching the screenshots
-- [ ] `split-drop-hints` - Render "Swap" and split direction labels from i18n
-- [ ] `split-drop-i18n` - Add split direction locale strings to all locale modules
-- [ ] `drag-preview-regression` - Confirm existing floating drag preview and source dimming still work
+- [x] `dnd-ghost-action` - Replace ghost state with target slot plus drop action
+- [x] `dnd-action-from-geometry` - Compute swap/split direction from dragover cursor and target rect
+- [x] `dnd-drop-dispatch` - Dispatch swap for center drops and move-into-split for edge drops
+- [x] `dnd-drop-validation` - Preserve WebView2-safe dragenter/dragover acceptance and final drop revalidation
+- [x] `split-drop-overlay-css` - Add directional CSS overlays matching the screenshots
+- [x] `split-drop-hints` - Render "Swap" and split direction labels from i18n
+- [x] `split-drop-i18n` - Add split direction locale strings to all locale modules
+- [x] `drag-preview-regression` - Confirm existing floating drag preview and source dimming still work
 
 ### P5 Verification
 
-- [ ] `unit-tests-state` - Add pure state tests for all split directions and error cases
-- [ ] `unit-tests-adoption` - Add service-level tests for PTY key move/adoption where practical
-- [ ] `regression-tests-existing` - Run existing swap, transfer, key-pair, and popout tests
-- [ ] `cargo-check-workspace` - Run `cargo check --workspace --locked`
+- [x] `unit-tests-state` - Add pure state tests for all split directions and error cases
+- [x] `unit-tests-adoption` - Add service-level tests for PTY key move/adoption where practical
+- [x] `regression-tests-existing` - Run existing swap, transfer, key-pair, and popout tests
+- [x] `sidebar-grid-preview-spans` - Reuse the terminal grid span helper for the sidebar workspace mini-grid so previews match incomplete final rows
+- [x] `cargo-check-workspace` - Run `cargo check --workspace --locked`
 - [ ] `manual-tauri-dnd` - Manually verify swap and all four split drops in Tauri
 - [ ] `manual-tauri-runtime` - Manually verify running shell, running agent, notifications, restart, cross-workspace drag, extract, and popout
