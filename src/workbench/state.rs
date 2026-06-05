@@ -6808,6 +6808,24 @@ mod terminal_slot_tests {
         });
     }
 
+    #[test]
+    fn live_terminal_keys_include_split_move_panes() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            svc.workspaces.set(vec![mk_slots(2)]);
+
+            let mv = svc
+                .move_terminal_slot_into_split(1, 1, 2, TerminalSlotDropAction::SplitRight)
+                .expect("split move");
+            let (_old, new) = mv.terminal_key_pair();
+            let keys = svc.live_terminal_keys();
+
+            assert!(keys.contains(&"ws-storage:2:2001".to_string()));
+            assert!(keys.contains(&new));
+            assert!(!keys.contains(&"ws-storage:1:1001".to_string()));
+        });
+    }
+
     fn mk_slots_with_id(id: u64, n: u8) -> WorkspaceEntry {
         let mut ws = mk_slots(n);
         ws.id = id;
