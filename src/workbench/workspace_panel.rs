@@ -16,7 +16,7 @@ use crate::workbench::shortcut_config::ShortcutAction;
 use crate::workbench::state::{
     workspace_entry_has_folder, BrowserEmbedSurface, CanvasNodeKind, CanvasNodeLayout,
     CanvasPortDirection, CanvasPortRef, CanvasTransferMode, CenterTab, CenterTabKind,
-    HarnessUiService, TerminalSplitAxis, WorkspaceEntry, WorkspaceViewMode,
+    HarnessUiService, SlotPaneAgentState, TerminalSplitAxis, WorkspaceEntry, WorkspaceViewMode,
     CENTER_TERMINALS_TAB_ID,
 };
 use crate::workbench::terminal_cell::WorkspaceTerminalCell;
@@ -1544,15 +1544,26 @@ fn TerminalSlotSurface(
 
                         let on_split_vertical = Callback::new(move |()| {
                             split_axis.set(TerminalSplitAxis::Vertical);
-                            insert_pane_after(pane_ids, next_pane_id, pane_id);
+                            let agent = pane_agent_for_split(&wb, workspace_id, slot_id, pane_id);
+                            insert_pane_after(pane_ids, pane_agents, next_pane_id, pane_id, agent);
                         });
                         let on_split_horizontal = Callback::new(move |()| {
                             split_axis.set(TerminalSplitAxis::Horizontal);
-                            insert_pane_after(pane_ids, next_pane_id, pane_id);
+                            let agent = pane_agent_for_split(&wb, workspace_id, slot_id, pane_id);
+                            insert_pane_after(pane_ids, pane_agents, next_pane_id, pane_id, agent);
                         });
                         let on_close = Callback::new(move |()| {
                             if pane_ids.with_untracked(|ids| ids.len() > 1) {
+                                let remove_idx = pane_ids
+                                    .with_untracked(|ids| ids.iter().position(|id| *id == pane_id));
                                 pane_ids.update(|ids| ids.retain(|id| *id != pane_id));
+                                if let Some(idx) = remove_idx {
+                                    pane_agents.update(|agents| {
+                                        if idx < agents.len() {
+                                            agents.remove(idx);
+                                        }
+                                    });
+                                }
                             } else {
                                 wb.close_terminal(workspace_id, slot_id);
                             }
@@ -1678,16 +1689,43 @@ fn TerminalSlotSurface(
     }
 }
 
-fn insert_pane_after(pane_ids: RwSignal<Vec<u64>>, next_pane_id: RwSignal<u64>, after_id: u64) {
+fn pane_agent_for_split(
+    wb: &WorkbenchService,
+    workspace_id: u64,
+    slot_id: u64,
+    pane_id: u64,
+) -> SlotPaneAgentState {
+    wb.workspaces()
+        .with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|workspace| workspace.id == workspace_id)
+                .and_then(|workspace| workspace.pane_agent_state(slot_id, pane_id))
+        })
+        .unwrap_or_default()
+}
+
+fn insert_pane_after(
+    pane_ids: RwSignal<Vec<u64>>,
+    pane_agents: RwSignal<Vec<SlotPaneAgentState>>,
+    next_pane_id: RwSignal<u64>,
+    after_id: u64,
+    agent: SlotPaneAgentState,
+) {
     let new_id = next_pane_id.get_untracked();
     next_pane_id.set(new_id.saturating_add(1));
+    let insert_at = pane_ids
+        .with_untracked(|ids| ids.iter().position(|id| *id == after_id))
+        .map(|i| i + 1)
+        .unwrap_or_else(|| pane_ids.with_untracked(|ids| ids.len()));
     pane_ids.update(|ids| {
-        let insert_at = ids
-            .iter()
-            .position(|id| *id == after_id)
-            .map(|i| i + 1)
-            .unwrap_or(ids.len());
-        ids.insert(insert_at, new_id);
+        ids.insert(insert_at.min(ids.len()), new_id);
+    });
+    pane_agents.update(|agents| {
+        while agents.len() < insert_at {
+            agents.push(SlotPaneAgentState::default());
+        }
+        agents.insert(insert_at.min(agents.len()), agent);
     });
 }
 

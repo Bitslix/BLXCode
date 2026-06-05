@@ -815,6 +815,16 @@ impl SlotPaneState {
             pane_agents: vec![SlotPaneAgentState::default()],
         }
     }
+
+    pub fn normalize_pane_agents(&mut self, fallback: &SlotPaneAgentState) {
+        self.pane_agents.truncate(self.pane_ids.len());
+        while self.pane_agents.len() < self.pane_ids.len() {
+            self.pane_agents.push(fallback.clone());
+        }
+        for agent in &mut self.pane_agents {
+            *agent = agent.with_fallback(fallback);
+        }
+    }
 }
 
 impl WorkspaceEntry {
@@ -851,11 +861,12 @@ impl WorkspaceEntry {
     pub fn pane_agent_state(&self, slot_id: u64, pane_id: u64) -> Option<SlotPaneAgentState> {
         let slot_idx = self.slot_ids.iter().position(|id| *id == slot_id)?;
         let fallback = self.slot_agent_state_at(slot_idx);
-        let pane_state = self
+        let mut pane_state = self
             .slot_pane_states
             .get(slot_idx)
             .cloned()
             .unwrap_or_else(|| SlotPaneState::default_for_slot(slot_id));
+        pane_state.normalize_pane_agents(&fallback);
         let pane_idx = pane_state.pane_ids.iter().position(|id| *id == pane_id)?;
         Some(
             pane_state
@@ -4650,7 +4661,10 @@ impl WorkbenchService {
                     .slot_pane_states
                     .push(SlotPaneState::default_for_slot(sid));
             }
+            let fallback = workspace.slot_agent_state_at(idx);
             if let Some(slot) = workspace.slot_pane_states.get_mut(idx) {
+                let mut state = state;
+                state.normalize_pane_agents(&fallback);
                 if *slot != state {
                     *slot = state;
                 }
@@ -6449,6 +6463,41 @@ mod terminal_slot_tests {
         assert_eq!(agent.agent_label, "codex");
         assert_eq!(agent.agent_model, "model0");
         assert_eq!(agent.agent_effort, "high");
+    }
+
+    #[test]
+    fn normalize_pane_agents_aligns_metadata_to_panes() {
+        let mut state = SlotPaneState {
+            axis: TerminalSplitAxis::Vertical,
+            pane_ids: vec![1, 2],
+            next_pane_id: 3,
+            pane_agents: vec![
+                SlotPaneAgentState {
+                    agent_label: "codex".into(),
+                    agent_model: String::new(),
+                    agent_effort: "high".into(),
+                },
+                SlotPaneAgentState::default(),
+                SlotPaneAgentState {
+                    agent_label: "extra".into(),
+                    agent_model: "extra-model".into(),
+                    agent_effort: "extra-effort".into(),
+                },
+            ],
+        };
+        let fallback = SlotPaneAgentState {
+            agent_label: "claude".into(),
+            agent_model: "sonnet".into(),
+            agent_effort: "medium".into(),
+        };
+
+        state.normalize_pane_agents(&fallback);
+
+        assert_eq!(state.pane_agents.len(), 2);
+        assert_eq!(state.pane_agents[0].agent_label, "codex");
+        assert_eq!(state.pane_agents[0].agent_model, "sonnet");
+        assert_eq!(state.pane_agents[0].agent_effort, "high");
+        assert_eq!(state.pane_agents[1], fallback);
     }
 
     #[test]
