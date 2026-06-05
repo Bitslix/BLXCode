@@ -1258,10 +1258,6 @@ pub async fn window_close() -> Result<(), String> {
     invoke_unit_js("window_close", JsValue::UNDEFINED).await
 }
 
-pub async fn window_current_close() -> Result<(), String> {
-    invoke_unit_js("window_current_close", JsValue::UNDEFINED).await
-}
-
 /// Toggles fullscreen; returns the resulting `is_fullscreen` flag.
 pub async fn window_toggle_fullscreen() -> Result<bool, String> {
     invoke_typed("window_toggle_fullscreen", serde_json::json!({})).await

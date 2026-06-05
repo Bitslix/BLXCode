@@ -33,4 +33,4 @@ Implement real Tauri child windows for workbench popouts on `feature/window-popo
 - [x] `terminal-ownership` - Implement move-to-popout terminal ownership
 - [x] `view-buttons` - Add local popout buttons
 - [x] `i18n` - Add localized popout labels
-- [ ] `verify` - Run checks and polish
+- [x] `verify` - Run checks and polish
