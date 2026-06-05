@@ -232,7 +232,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 
 ### P5 Verification
 
-- [ ] `unit-tests-state` - Add pure state tests for all split directions and error cases
+- [x] `unit-tests-state` - Add pure state tests for all split directions and error cases
 - [ ] `unit-tests-adoption` - Add service-level tests for PTY key move/adoption where practical
 - [ ] `regression-tests-existing` - Run existing swap, transfer, key-pair, and popout tests
 - [ ] `cargo-check-workspace` - Run `cargo check --workspace --locked`

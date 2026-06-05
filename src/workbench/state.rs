@@ -6641,6 +6641,48 @@ mod terminal_slot_tests {
     }
 
     #[test]
+    fn move_into_split_applies_directional_axis_and_insert_order() {
+        let cases = [
+            (
+                TerminalSlotDropAction::SplitTop,
+                TerminalSplitAxis::Horizontal,
+                true,
+            ),
+            (
+                TerminalSlotDropAction::SplitBottom,
+                TerminalSplitAxis::Horizontal,
+                false,
+            ),
+            (
+                TerminalSlotDropAction::SplitLeft,
+                TerminalSplitAxis::Vertical,
+                true,
+            ),
+            (
+                TerminalSlotDropAction::SplitRight,
+                TerminalSplitAxis::Vertical,
+                false,
+            ),
+        ];
+
+        for (action, expected_axis, inserts_before_target) in cases {
+            let mut ws = mk_slots(2);
+            let target_first_pane = ws.slot_pane_states[1].pane_ids[0];
+            let mv =
+                move_workspace_slot_into_split(&mut ws, 1, 2, action).expect("move into split");
+            let target = ws.slot_pane_states.last().expect("target pane state");
+
+            assert_eq!(target.axis, expected_axis);
+            let expected_panes = if inserts_before_target {
+                vec![mv.new_pane_id, target_first_pane]
+            } else {
+                vec![target_first_pane, mv.new_pane_id]
+            };
+            assert_eq!(target.pane_ids, expected_panes);
+        }
+    }
+
+    #[test]
     fn move_into_split_rejects_invalid_inputs() {
         let mut ws = mk_slots(2);
         assert!(move_workspace_slot_into_split(
