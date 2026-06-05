@@ -1,4 +1,10 @@
 //! Drag-and-drop helpers for reordering terminal slots within a workspace grid.
+//!
+//! Drop-intent geometry for the drag-to-split work:
+//! - the centered 40% x 40% rectangle of the target slot is `Swap`;
+//! - outside that center, choose the nearest normalized edge;
+//! - top/bottom edges map to horizontal splits, left/right to vertical splits;
+//! - when a browser cannot provide target geometry, fall back to `Swap`.
 
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};

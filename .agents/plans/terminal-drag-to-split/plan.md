@@ -192,7 +192,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 
 - [x] `dnd-state-audit` - Re-read current `TerminalSlotSurface`, `SlotPaneState`, and PTY adoption code before editing
 - [x] `dirty-tree-guard` - Record current unrelated modified files and avoid reverting user/in-flight changes
-- [ ] `drop-intent-spec` - Document final geometry thresholds for swap vs split zones in code comments or tests
+- [x] `drop-intent-spec` - Document final geometry thresholds for swap vs split zones in code comments or tests
 
 ### P1 State Model
 
