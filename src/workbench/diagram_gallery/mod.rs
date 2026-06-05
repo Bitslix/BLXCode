@@ -12,7 +12,7 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     mermaid_delete_diagram, mermaid_export_markdown, mermaid_export_pdf, mermaid_list_diagrams,
-    mermaid_update_diagram, DiagramRecord, TimelineDiagram,
+    mermaid_update_diagram, DiagramRecord, PopoutPayload, TimelineDiagram,
 };
 use crate::workbench::diagram_render::{
     diagram_first_seen, rendered_svg_outer_html, MermaidPreviewWithInspector,
@@ -21,9 +21,12 @@ use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use leptos_icons::Icon as LxIcon;
+use serde::{Deserialize, Serialize};
 
 /// What a gallery tab shows.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum GalleryScope {
     /// Load diagrams from the store for this plan slug (deletable).
     Plan { slug: String },
@@ -138,7 +141,7 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
     let allow_save = plan_slug.is_some();
 
     // Populate the diagram set.
-    match scope {
+    match scope.clone() {
         GalleryScope::Plan { slug } => {
             if let Some(cwd) = cwd.clone() {
                 spawn_local(async move {
@@ -390,6 +393,31 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                 <div class="diagram-gallery__toolbar">
                     <span class="diagram-gallery__active-title">{move || active_title.get()}</span>
                     <span class="diagram-gallery__spacer" />
+                    <button
+                        class="diagram-gallery__export diagram-gallery__export--icon"
+                        title=move || i18n.tr(I18nKey::PopoutDiagramGallery)()
+                        aria-label=move || i18n.tr(I18nKey::PopoutDiagramGallery)()
+                        on:click={
+                            let scope = scope.clone();
+                            move |_| {
+                                let scope = match serde_json::to_value(&scope) {
+                                    Ok(scope) => scope,
+                                    Err(err) => {
+                                        leptos::logging::warn!("diagram gallery popout payload: {err}");
+                                        return;
+                                    }
+                                };
+                                spawn_local(async move {
+                                    let _ = crate::tauri_bridge::popout_open(PopoutPayload::DiagramGallery {
+                                        workspace_id,
+                                        scope,
+                                    }).await;
+                                });
+                            }
+                        }
+                    >
+                        <LxIcon icon=icondata::LuExternalLink width="0.78rem" height="0.78rem" />
+                    </button>
                     <button
                         class="diagram-gallery__export"
                         on:click=move |_| inspector_open.update(|open| *open = !*open)

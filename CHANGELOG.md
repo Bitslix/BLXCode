@@ -5,6 +5,12 @@ All notable changes to BLXCode are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Window Popout**: terminals, Memory, Memory Graph, Mermaid file previews, diagram galleries, and File Diff views can now open in real Tauri child windows instead of modal overlays. Popout windows use the BLXCode custom titlebar adapted for child windows, token-based workbench styling, localized labels, and existing view context. Terminal popouts move ownership of the live PTY renderer to the child window and return it to the main grid on close, while duplicate popout requests focus the existing child window.
+
 ## [0.5.1] - 2026-06-05
 
 ### Added

@@ -236,6 +236,152 @@
   background: currentColor;
 }
 
+/* ---- Popout child chrome ---- */
+.workbench-popout-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+.workbench-popout-titlebar {
+  flex: 0 0 34px;
+  height: 34px;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  background: var(--bg-panel-header);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.workbench-popout-titlebar__brand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0 0.58rem;
+  font-family: var(--font-mono);
+}
+
+.workbench-popout-titlebar__logo {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.workbench-popout-titlebar__app {
+  color: var(--text-bright);
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.workbench-popout-titlebar__sep {
+  width: 1px;
+  height: 15px;
+  background: var(--border-strong);
+  flex-shrink: 0;
+}
+
+.workbench-popout-titlebar__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.workbench-popout-titlebar__controls {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.workbench-popout-titlebar__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.workbench-popout-titlebar__btn:hover {
+  background: var(--overlay-2);
+  color: var(--text-bright);
+}
+
+.workbench-popout-titlebar__btn--close:hover {
+  background: var(--danger);
+  color: var(--on-accent);
+}
+
+.workbench-popout-titlebar__min {
+  width: 11px;
+  height: 1px;
+  background: currentColor;
+}
+
+.workbench-popout-shell__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.workbench-popout-shell__placeholder {
+  margin: auto;
+  max-width: 34rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.workbench-popout-shell__eyebrow {
+  display: block;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.workbench-popout-shell__placeholder h1 {
+  margin: 0.45rem 0 0;
+  color: var(--text);
+  font-size: 1.2rem;
+  font-weight: 650;
+}
+
+.workbench-popout-terminal {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  padding: 0.5rem;
+}
+
+.workbench-popout-terminal > .ws-term-cell {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ws-term-cell--popout-placeholder {
+  min-height: 7rem;
+  border-style: dashed;
+  background: var(--overlay-1);
+}
+
 /* ---- Popovers (NAVIGATE + Notifications) ---- */
 .app-titlebar__menu-wrap {
   position: relative;
@@ -898,9 +1044,71 @@
 .app-titlebar__run-list {
   display: flex;
   flex-direction: column;
-  gap: 0.12rem;
+  gap: 0.28rem;
   max-height: 340px;
   overflow-y: auto;
+}
+
+.app-titlebar__run-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.app-titlebar__run-group + .app-titlebar__run-group {
+  padding-top: 0.18rem;
+  border-top: 1px solid var(--border);
+}
+
+.app-titlebar__run-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  width: 100%;
+  padding: 0.2rem 0.45rem 0.12rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.app-titlebar__run-group-head:hover {
+  background: var(--overlay-1);
+  color: var(--text-muted);
+}
+
+.app-titlebar__run-group-head svg {
+  flex: 0 0 auto;
+}
+
+.app-titlebar__run-group-count {
+  margin-left: auto;
+  min-width: 1.2rem;
+  padding: 0.03rem 0.28rem;
+  border-radius: var(--radius-pill);
+  background: var(--overlay-1);
+  color: var(--text-faint);
+  font-size: 0.58rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.app-titlebar__run-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.app-titlebar__run-group-items--collapsed {
+  display: none;
 }
 
 .app-titlebar__run-item {

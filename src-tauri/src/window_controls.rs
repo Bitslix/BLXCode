@@ -34,6 +34,11 @@ pub fn window_minimize(app: tauri::AppHandle) -> Result<(), String> {
     win.minimize().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn window_current_minimize(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.minimize().map_err(|e| e.to_string())
+}
+
 /// Maximize when restored, unmaximize when maximized. Mirrors the OS
 /// maximize button and the double-click-on-titlebar behaviour.
 #[tauri::command]
@@ -53,11 +58,27 @@ pub fn window_toggle_maximize(app: tauri::AppHandle) -> Result<bool, String> {
 }
 
 #[tauri::command]
+pub fn window_current_toggle_maximize(window: tauri::WebviewWindow) -> Result<bool, String> {
+    let maximized = window.is_maximized().map_err(|e| e.to_string())?;
+    if maximized {
+        window.unmaximize().map_err(|e| e.to_string())?;
+    } else {
+        window.maximize().map_err(|e| e.to_string())?;
+    }
+    Ok(!maximized)
+}
+
+#[tauri::command]
 pub fn window_is_maximized(app: tauri::AppHandle) -> Result<bool, String> {
     let Some(win) = main_window(&app) else {
         return Ok(false);
     };
     win.is_maximized().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn window_current_is_maximized(window: tauri::WebviewWindow) -> Result<bool, String> {
+    window.is_maximized().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -68,6 +89,11 @@ pub fn window_close(app: tauri::AppHandle) -> Result<(), String> {
     // `close()` runs the normal close path (fires the `beforeunload` flush
     // already wired in the shell), matching the OS close button.
     win.close().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn window_current_close(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
 }
 
 #[tauri::command]

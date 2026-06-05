@@ -2,9 +2,9 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_latest_session_id, agent_remote_latest_session_id, agent_session_exists, is_tauri_shell,
-    pty_drain_wait, pty_kill, pty_resize, pty_spawn_remote, pty_spawn_with_env, pty_write,
-    workbench_drop_sessions, workbench_load_sessions, workbench_notifications_path,
-    workbench_sessions_path, workbench_usage_path,
+    popout_open, pty_drain_wait, pty_kill, pty_resize, pty_spawn_remote, pty_spawn_with_env,
+    pty_write, workbench_drop_sessions, workbench_load_sessions, workbench_notifications_path,
+    workbench_sessions_path, workbench_usage_path, PopoutPayload,
 };
 use crate::workbench::agent_accent::agent_accent_class;
 use crate::workbench::agent_context_handoff::TerminalSlotHandoffButton;
@@ -95,6 +95,7 @@ pub fn WorkspaceTerminalCell(
     /// (e.g. last remaining terminal in the workspace with a single pane).
     can_close: Signal<bool>,
     slot_drag_enabled: Signal<bool>,
+    #[prop(default = false)] popout_surface: bool,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let wb = expect_context::<crate::workbench::state::WorkbenchService>();
@@ -490,6 +491,11 @@ pub fn WorkspaceTerminalCell(
             // tear down the agent CLI mid-transfer. The target cell
             // re-registers the session under its own key.
             let moving = wb.is_terminal_key_moving(&terminal_key_cleanup);
+            if popout_surface {
+                wb.prepare_terminal_popout_return(&terminal_key_cleanup);
+                wb.clear_terminal_popout(&terminal_key_cleanup);
+            }
+            let moving = moving || popout_surface;
             if !moving {
                 wb.unregister_pty_session(&terminal_key_cleanup);
             }
@@ -504,6 +510,8 @@ pub fn WorkspaceTerminalCell(
             }
         }
     });
+
+    let terminal_key_for_popout = terminal_key.clone();
 
     view! {
         <div
@@ -703,6 +711,37 @@ pub fn WorkspaceTerminalCell(
                     terminal_key=terminal_key.clone()
                     agent_slug=agent_slug.clone()
                 />
+                <Show when=move || !popout_surface>
+                    <button
+                        type="button"
+                        class="ws-term-cell__tool"
+                        prop:draggable=false
+                        on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                        title=move || i18n.tr(I18nKey::PopoutTerminal)()
+                        aria-label=move || i18n.tr(I18nKey::PopoutTerminal)()
+                        on:click={
+                            let terminal_key = terminal_key_for_popout.clone();
+                            move |_| {
+                                let payload = PopoutPayload::Terminal {
+                                    workspace_id,
+                                    slot_id,
+                                    pane_id,
+                                    terminal_key: terminal_key.clone(),
+                                };
+                                let wb = wb;
+                                let key = terminal_key.clone();
+                                leptos::task::spawn_local(async move {
+                                    match popout_open(payload).await {
+                                        Ok(label) => wb.prepare_terminal_popout(&key, label),
+                                        Err(err) => leptos::logging::warn!("terminal popout open: {err}"),
+                                    }
+                                });
+                            }
+                        }
+                    >
+                        <LxIcon icon=icondata::LuExternalLink width="0.78rem" height="0.78rem" />
+                    </button>
+                </Show>
                 <button
                     type="button"
                     class="ws-term-cell__tool"

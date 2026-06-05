@@ -4,10 +4,11 @@
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{git_file_diff, GIT_MISSING_CODE};
+use crate::tauri_bridge::{git_file_diff, popout_open, PopoutPayload, GIT_MISSING_CODE};
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use leptos_icons::Icon as LxIcon;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DiffErrorKind {
@@ -70,6 +71,27 @@ pub fn FileDiffDock(workspace_id: u64, rel_path: String, staged: bool) -> impl I
                 }>
                     {if staged { "staged" } else { "unstaged" }}
                 </span>
+                <button
+                    type="button"
+                    class="file-diff-view__popout"
+                    title=move || i18n.tr(I18nKey::PopoutFileDiff)()
+                    aria-label=move || i18n.tr(I18nKey::PopoutFileDiff)()
+                    on:click={
+                        let rel_path = rel_path.clone();
+                        move |_| {
+                            let payload = PopoutPayload::FileDiff {
+                                workspace_id,
+                                rel_path: rel_path.clone(),
+                                staged,
+                            };
+                            spawn_local(async move {
+                                let _ = popout_open(payload).await;
+                            });
+                        }
+                    }
+                >
+                    <LxIcon icon=icondata::LuExternalLink width="0.78rem" height="0.78rem" />
+                </button>
             </header>
             <div class="file-diff-view__body">
                 <Show

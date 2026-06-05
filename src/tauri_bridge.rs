@@ -1152,6 +1152,88 @@ pub async fn exit_app_ipc() -> Result<(), String> {
     invoke_unit_js("exit_app", JsValue::UNDEFINED).await
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum PopoutPayload {
+    Terminal {
+        workspace_id: u64,
+        slot_id: u64,
+        pane_id: u64,
+        terminal_key: String,
+    },
+    Memory {
+        workspace_id: u64,
+        initial_view: Option<String>,
+    },
+    MemoryGraph {
+        workspace_id: u64,
+    },
+    MermaidFile {
+        workspace_id: u64,
+        rel_path: String,
+    },
+    DiagramGallery {
+        workspace_id: u64,
+        scope: serde_json::Value,
+    },
+    FileDiff {
+        workspace_id: u64,
+        rel_path: String,
+        staged: bool,
+    },
+}
+
+impl PopoutPayload {
+    #[must_use]
+    pub fn fallback_title(&self) -> String {
+        match self {
+            Self::Terminal { slot_id, .. } => format!("Terminal #{slot_id}"),
+            Self::Memory { .. } => "Memory".into(),
+            Self::MemoryGraph { .. } => "Memory Graph".into(),
+            Self::MermaidFile { rel_path, .. } => format!("Mermaid: {rel_path}"),
+            Self::DiagramGallery { .. } => "Mermaid Diagrams".into(),
+            Self::FileDiff {
+                rel_path, staged, ..
+            } => {
+                let state = if *staged { "staged" } else { "unstaged" };
+                format!("Diff: {rel_path} ({state})")
+            }
+        }
+    }
+}
+
+pub async fn popout_open(payload: PopoutPayload) -> Result<String, String> {
+    #[derive(Serialize)]
+    struct Args {
+        payload: PopoutPayload,
+    }
+    invoke_typed("popout_open", Args { payload }).await
+}
+
+pub async fn popout_focus(label: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        label: String,
+    }
+    invoke_unit_js("popout_focus", args_value(Args { label })?).await
+}
+
+pub async fn popout_close_current() -> Result<(), String> {
+    invoke_unit_js("popout_close_current", JsValue::UNDEFINED).await
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PopoutClosedPayload {
+    pub label: String,
+}
+
+pub fn listen_popout_closed(
+    callback: impl FnMut(PopoutClosedPayload) + 'static,
+) -> Option<TauriEventListener> {
+    listen_tauri_event::<PopoutClosedPayload>("popout_closed", callback)
+}
+
 // ---------------------------------------------------------------------------
 // Custom title bar — window controls (decorations:false). The privileged
 // min/max/close/fullscreen calls live in the Rust backend; the frontend only
@@ -1163,13 +1245,25 @@ pub async fn window_minimize() -> Result<(), String> {
     invoke_unit_js("window_minimize", JsValue::UNDEFINED).await
 }
 
+pub async fn window_current_minimize() -> Result<(), String> {
+    invoke_unit_js("window_current_minimize", JsValue::UNDEFINED).await
+}
+
 /// Toggles maximize/restore; returns the resulting `is_maximized` flag.
 pub async fn window_toggle_maximize() -> Result<bool, String> {
     invoke_typed("window_toggle_maximize", serde_json::json!({})).await
 }
 
+pub async fn window_current_toggle_maximize() -> Result<bool, String> {
+    invoke_typed("window_current_toggle_maximize", serde_json::json!({})).await
+}
+
 pub async fn window_is_maximized() -> Result<bool, String> {
     invoke_typed("window_is_maximized", serde_json::json!({})).await
+}
+
+pub async fn window_current_is_maximized() -> Result<bool, String> {
+    invoke_typed("window_current_is_maximized", serde_json::json!({})).await
 }
 
 pub async fn window_close() -> Result<(), String> {

@@ -1811,6 +1811,10 @@ pub struct WorkbenchService {
     /// freshly mounted target cell consumes this to skip `pty_spawn` and
     /// reuse the live session instead.
     terminal_adopt_pending: RwSignal<HashMap<String, u64>>,
+    /// Terminal keys currently owned by a popout child window. The value is
+    /// the Tauri window label so the main view can focus the child instead of
+    /// mounting a duplicate xterm renderer.
+    terminal_popouts: RwSignal<HashMap<String, String>>,
 }
 
 /// Cross-workspace terminal slot move; returned by
@@ -1936,6 +1940,7 @@ impl WorkbenchService {
             kanban_plan_focus: RwSignal::new(None),
             terminal_move_guards: RwSignal::new(HashMap::new()),
             terminal_adopt_pending: RwSignal::new(HashMap::new()),
+            terminal_popouts: RwSignal::new(HashMap::new()),
         }
     }
 
@@ -2405,6 +2410,57 @@ impl WorkbenchService {
         self.pty_sessions.update(|m| {
             m.remove(terminal_key);
         });
+    }
+
+    #[must_use]
+    pub fn terminal_popout_label(&self, terminal_key: &str) -> Option<String> {
+        self.terminal_popouts
+            .with(|m| m.get(terminal_key).cloned())
+    }
+
+    pub fn prepare_terminal_popout(&self, terminal_key: &str, label: String) {
+        let key = terminal_key.to_string();
+        if let Some(sid) = self.pty_sessions.with_untracked(|m| m.get(&key).copied()) {
+            self.terminal_move_guards.update(|m| {
+                m.insert(key.clone(), key.clone());
+            });
+            self.terminal_adopt_pending.update(|m| {
+                m.insert(key.clone(), sid);
+            });
+        }
+        self.terminal_popouts.update(|m| {
+            m.insert(key, label);
+        });
+    }
+
+    pub fn prepare_terminal_popout_return(&self, terminal_key: &str) {
+        let key = terminal_key.to_string();
+        if let Some(sid) = self.pty_sessions.with_untracked(|m| m.get(&key).copied()) {
+            self.terminal_move_guards.update(|m| {
+                m.insert(key.clone(), key.clone());
+            });
+            self.terminal_adopt_pending.update(|m| {
+                m.insert(key, sid);
+            });
+        }
+    }
+
+    pub fn clear_terminal_popout(&self, terminal_key: &str) {
+        self.terminal_popouts.update(|m| {
+            m.remove(terminal_key);
+        });
+        self.bump_terminal_layout();
+    }
+
+    pub fn return_terminal_popout_by_label(&self, label: &str) {
+        let key = self.terminal_popouts.with_untracked(|m| {
+            m.iter()
+                .find_map(|(key, value)| (value == label).then(|| key.clone()))
+        });
+        if let Some(key) = key {
+            self.prepare_terminal_popout_return(&key);
+            self.clear_terminal_popout(&key);
+        }
     }
 
     /// Snapshot of all PTY sessions belonging to one workspace, keyed by
@@ -5386,6 +5442,15 @@ impl WorkbenchService {
         if snap.version != WORKBENCH_SNAPSHOT_VERSION {
             return false;
         }
+        // Snapshot hydration is a process/startup boundary. These maps are
+        // live runtime coordination only; carrying them across hydration can
+        // leave terminals hidden behind stale "popped out" placeholders or
+        // trying to adopt PTYs that no longer exist.
+        self.pty_sessions.update(|m| m.clear());
+        self.terminal_move_guards.update(|m| m.clear());
+        self.terminal_adopt_pending.update(|m| m.clear());
+        self.terminal_popouts.update(|m| m.clear());
+
         let color_presets = self.memory_color_presets.get_untracked();
         let max_snap_workspace_id = snap.workspaces.iter().map(|w| w.id).max().unwrap_or(0);
         let workspaces: Vec<WorkspaceEntry> = snap
@@ -6157,6 +6222,45 @@ mod terminal_slot_tests {
         }
     }
 
+    fn test_service() -> WorkbenchService {
+        WorkbenchService {
+            workspaces: RwSignal::new(Vec::new()),
+            active_id: RwSignal::new(None),
+            recent_workspaces: RwSignal::new(Vec::new()),
+            sidebar_collapsed: RwSignal::new(false),
+            sidebar_width_px: RwSignal::new(SIDEBAR_WIDTH_PX_DEFAULT),
+            right_collapsed: RwSignal::new(false),
+            right_width_px: RwSignal::new(420.0),
+            right_tab: RwSignal::new(RightPanelTab::Agent),
+            browser_url: RwSignal::new(HARNESS_BROWSER_DEFAULT_URL.to_string()),
+            embedded_browser_tabs: RwSignal::new(Vec::new()),
+            embedded_browser_active_id: RwSignal::new(0),
+            embedded_browser_next_id: RwSignal::new(1),
+            harness_workspace_root: RwSignal::new(String::new()),
+            default_project_dir: RwSignal::new(String::new()),
+            default_session_role: RwSignal::new(None),
+            workspace_next_id: RwSignal::new(1),
+            workspace_drafts: RwSignal::new(HashMap::new()),
+            workspace_config_steps: RwSignal::new(HashMap::new()),
+            pty_sessions: RwSignal::new(HashMap::new()),
+            pending_memory_note: RwSignal::new(None),
+            terminal_layout_tick: RwSignal::new(0),
+            notifications: RwSignal::new(HashMap::new()),
+            agent_notifications: RwSignal::new(Vec::new()),
+            pending_clears: RwSignal::new(HashSet::new()),
+            focused_terminal_by_workspace: RwSignal::new(HashMap::new()),
+            terminal_titles: RwSignal::new(HashMap::new()),
+            memory_color_presets: RwSignal::new(Vec::new()),
+            agent_image_context: RwSignal::new(HashMap::new()),
+            sidebar_repo_epoch: RwSignal::new(0),
+            plans_epoch: RwSignal::new(0),
+            kanban_plan_focus: RwSignal::new(None),
+            terminal_move_guards: RwSignal::new(HashMap::new()),
+            terminal_adopt_pending: RwSignal::new(HashMap::new()),
+            terminal_popouts: RwSignal::new(HashMap::new()),
+        }
+    }
+
     #[test]
     fn reorder_permutes_parallel_vectors() {
         let mut ws = mk_slots(3);
@@ -6298,5 +6402,55 @@ mod terminal_slot_tests {
         assert!(pairs[0].0.ends_with(&format!(":{}:7", mv.old_slot_id)));
         assert!(pairs[0].1.ends_with(&format!(":{}:7", mv.new_slot_id)));
         assert!(pairs[1].0.ends_with(&format!(":{}:11", mv.old_slot_id)));
+    }
+
+    #[test]
+    fn return_popout_by_label_clears_placeholder_and_marks_adoption() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            let terminal_key = "workspace:1:1".to_string();
+            svc.register_pty_session(terminal_key.clone(), 42);
+            svc.prepare_terminal_popout(&terminal_key, "popout-terminal-test".into());
+
+            svc.return_terminal_popout_by_label("popout-terminal-test");
+
+            assert_eq!(svc.terminal_popout_label(&terminal_key), None);
+            assert_eq!(
+                svc.terminal_adopt_pending
+                    .with_untracked(|m| m.get(&terminal_key).copied()),
+                Some(42)
+            );
+        });
+    }
+
+    #[test]
+    fn hydrate_clears_stale_terminal_runtime_state() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            let terminal_key = "workspace:1:1".to_string();
+            svc.register_pty_session(terminal_key.clone(), 42);
+            svc.prepare_terminal_popout(&terminal_key, "popout-terminal-test".into());
+
+            assert!(svc.hydrate(WorkbenchSnapshot {
+                version: WORKBENCH_SNAPSHOT_VERSION,
+                workspaces: Vec::new(),
+                active_id: None,
+                workspace_next_id: 1,
+                sidebar_collapsed: false,
+                sidebar_width_px: SIDEBAR_WIDTH_PX_DEFAULT,
+                right_collapsed: false,
+                right_width_px: 420.0,
+                right_tab: RightPanelTab::Agent,
+                recent_workspaces: Vec::new(),
+                embedded_browser_tabs: Vec::new(),
+                embedded_browser_active_id: 0,
+                embedded_browser_next_id: 1,
+            }));
+
+            assert!(svc.pty_sessions.with_untracked(|m| m.is_empty()));
+            assert!(svc.terminal_move_guards.with_untracked(|m| m.is_empty()));
+            assert!(svc.terminal_adopt_pending.with_untracked(|m| m.is_empty()));
+            assert_eq!(svc.terminal_popout_label(&terminal_key), None);
+        });
     }
 }
