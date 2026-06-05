@@ -204,7 +204,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 ### P2 Move Into Split Operation
 
 - [x] `split-drop-action-type` - Add Rust enum for `Swap`, `SplitTop`, `SplitBottom`, `SplitLeft`, and `SplitRight`
-- [ ] `move-into-split-helper` - Add pure state helper that removes source slot and inserts it as target pane
+- [x] `move-into-split-helper` - Add pure state helper that removes source slot and inserts it as target pane
 - [ ] `move-into-split-errors` - Return explicit errors for same slot, missing slots, multi-pane source, and invalid workspace state
 - [ ] `move-into-split-keypair` - Return old-to-new terminal key pair for the moved pane
 - [ ] `move-into-split-service` - Add `WorkbenchService::move_terminal_slot_into_split` wrapper

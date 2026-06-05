@@ -13,6 +13,7 @@ use crate::workbench::agent_timeline::TimelineDoc;
 use crate::workbench::terminal_agent_profiles::{
     is_supported_terminal_agent_slug, supported_terminal_agent_slugs,
 };
+use crate::workbench::terminal_slot_dnd::TerminalSlotDropAction;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -812,7 +813,7 @@ impl SlotPaneState {
             axis: TerminalSplitAxis::Vertical,
             pane_ids: vec![first],
             next_pane_id: first.saturating_add(1),
-            pane_agents: vec![SlotPaneAgentState::default()],
+            pane_agents: Vec::new(),
         }
     }
 
@@ -822,7 +823,9 @@ impl SlotPaneState {
             self.pane_agents.push(fallback.clone());
         }
         for agent in &mut self.pane_agents {
-            *agent = agent.with_fallback(fallback);
+            if !agent.agent_label.trim().is_empty() {
+                *agent = agent.with_fallback(fallback);
+            }
         }
     }
 }
@@ -872,7 +875,13 @@ impl WorkspaceEntry {
             pane_state
                 .pane_agents
                 .get(pane_idx)
-                .map(|agent| agent.with_fallback(&fallback))
+                .map(|agent| {
+                    if agent.agent_label.trim().is_empty() {
+                        agent.clone()
+                    } else {
+                        agent.with_fallback(&fallback)
+                    }
+                })
                 .unwrap_or(fallback),
         )
     }
@@ -1926,6 +1935,18 @@ pub struct TerminalSlotMove {
     pub old_slot_id: u64,
     pub new_slot_id: u64,
     pub pane_ids: Vec<u64>,
+    pub agent_slug: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TerminalSlotSplitMove {
+    pub workspace_id: u64,
+    pub storage_key: String,
+    pub source_slot_id: u64,
+    pub target_slot_id: u64,
+    pub old_pane_id: u64,
+    pub new_pane_id: u64,
+    pub action: TerminalSlotDropAction,
     pub agent_slug: String,
 }
 
@@ -3721,6 +3742,35 @@ impl WorkbenchService {
                 swap_workspace_slots(workspace, slot_a, slot_b);
             }
         });
+    }
+
+    #[expect(
+        dead_code,
+        reason = "wired by the follow-up terminal drop dispatch task"
+    )]
+    pub fn move_terminal_slot_into_split(
+        &self,
+        workspace_id: u64,
+        source_slot_id: u64,
+        target_slot_id: u64,
+        action: TerminalSlotDropAction,
+    ) -> Result<TerminalSlotSplitMove, String> {
+        let mut result: Result<TerminalSlotSplitMove, String> = Err("not run".into());
+        self.workspaces.update(|workspaces| {
+            result = workspaces
+                .iter_mut()
+                .find(|w| w.id == workspace_id)
+                .ok_or_else(|| "workspace not found".to_string())
+                .and_then(|workspace| {
+                    move_workspace_slot_into_split(
+                        workspace,
+                        source_slot_id,
+                        target_slot_id,
+                        action,
+                    )
+                });
+        });
+        result
     }
 
     /// True while the source cell's `terminal_key` is mid-transfer. The
@@ -5886,6 +5936,125 @@ fn swap_workspace_slots(workspace: &mut WorkspaceEntry, slot_a: u64, slot_b: u64
     true
 }
 
+fn move_workspace_slot_into_split(
+    workspace: &mut WorkspaceEntry,
+    source_slot_id: u64,
+    target_slot_id: u64,
+    action: TerminalSlotDropAction,
+) -> Result<TerminalSlotSplitMove, String> {
+    if source_slot_id == target_slot_id {
+        return Err("cannot split a terminal into itself".into());
+    }
+    let Some(source_idx) = workspace
+        .slot_ids
+        .iter()
+        .position(|id| *id == source_slot_id)
+    else {
+        return Err("source slot not found".into());
+    };
+    let Some(target_idx) = workspace
+        .slot_ids
+        .iter()
+        .position(|id| *id == target_slot_id)
+    else {
+        return Err("target slot not found".into());
+    };
+    if workspace.slot_ids.len() <= 1 {
+        return Err("workspace must keep at least one target slot".into());
+    }
+    while workspace.slot_agent_labels.len() < workspace.slot_ids.len() {
+        workspace.slot_agent_labels.push(String::new());
+    }
+    while workspace.slot_agent_models.len() < workspace.slot_ids.len() {
+        workspace.slot_agent_models.push(String::new());
+    }
+    while workspace.slot_agent_efforts.len() < workspace.slot_ids.len() {
+        workspace.slot_agent_efforts.push(String::new());
+    }
+    while workspace.slot_pane_states.len() < workspace.slot_ids.len() {
+        let sid = workspace.slot_ids[workspace.slot_pane_states.len()];
+        workspace
+            .slot_pane_states
+            .push(SlotPaneState::default_for_slot(sid));
+    }
+
+    let mut source_state = workspace
+        .slot_pane_states
+        .get(source_idx)
+        .cloned()
+        .unwrap_or_else(|| SlotPaneState::default_for_slot(source_slot_id));
+    let source_fallback = workspace.slot_agent_state_at(source_idx);
+    source_state.normalize_pane_agents(&source_fallback);
+    if source_state.pane_ids.len() != 1 {
+        return Err("source slot must have exactly one pane".into());
+    }
+    let old_pane_id = source_state.pane_ids[0];
+    let source_agent = workspace
+        .pane_agent_state(source_slot_id, old_pane_id)
+        .unwrap_or(source_fallback);
+
+    let mut target_state = workspace
+        .slot_pane_states
+        .get(target_idx)
+        .cloned()
+        .unwrap_or_else(|| SlotPaneState::default_for_slot(target_slot_id));
+    let target_fallback = workspace.slot_agent_state_at(target_idx);
+    target_state.normalize_pane_agents(&target_fallback);
+    let insert_at = match action {
+        TerminalSlotDropAction::SplitTop | TerminalSlotDropAction::SplitLeft => 0,
+        TerminalSlotDropAction::SplitBottom | TerminalSlotDropAction::SplitRight => {
+            target_state.pane_ids.len()
+        }
+        TerminalSlotDropAction::Swap => {
+            return Err("swap is not a split action".into());
+        }
+    };
+    target_state.axis = match action {
+        TerminalSlotDropAction::SplitTop | TerminalSlotDropAction::SplitBottom => {
+            TerminalSplitAxis::Horizontal
+        }
+        TerminalSlotDropAction::SplitLeft | TerminalSlotDropAction::SplitRight => {
+            TerminalSplitAxis::Vertical
+        }
+        TerminalSlotDropAction::Swap => unreachable!("swap returned above"),
+    };
+    let mut new_pane_id = target_state.next_pane_id.max(1);
+    while target_state.pane_ids.contains(&new_pane_id) {
+        new_pane_id = new_pane_id.saturating_add(1);
+    }
+    target_state.next_pane_id = new_pane_id.saturating_add(1);
+    target_state.pane_ids.insert(insert_at, new_pane_id);
+    target_state.pane_agents.insert(insert_at, source_agent.clone());
+
+    workspace.slot_ids.remove(source_idx);
+    workspace.slot_agent_labels.remove(source_idx);
+    workspace.slot_agent_models.remove(source_idx);
+    workspace.slot_agent_efforts.remove(source_idx);
+    workspace.slot_pane_states.remove(source_idx);
+    workspace.slot_name_overrides.remove(&source_slot_id);
+
+    let Some(target_idx_after_remove) = workspace
+        .slot_ids
+        .iter()
+        .position(|id| *id == target_slot_id)
+    else {
+        return Err("target slot removed unexpectedly".into());
+    };
+    workspace.slot_pane_states[target_idx_after_remove] = target_state;
+    workspace.set_count_and_dims(workspace.slot_ids.len() as u8);
+
+    Ok(TerminalSlotSplitMove {
+        workspace_id: workspace.id,
+        storage_key: workspace.storage_key.clone(),
+        source_slot_id,
+        target_slot_id,
+        old_pane_id,
+        new_pane_id,
+        action,
+        agent_slug: source_agent.agent_label,
+    })
+}
+
 /// Pure transfer of a slot between two workspaces, validating inputs and
 /// returning the resulting [`TerminalSlotMove`]. Callers wire any
 /// side-effects (PTY adoption, key rewrites, focus changes) themselves.
@@ -6413,6 +6582,35 @@ mod terminal_slot_tests {
         assert_eq!(ws.slot_ids, vec![1, 2]);
     }
 
+    #[test]
+    fn move_into_split_removes_source_and_inserts_target_pane() {
+        let mut ws = mk_slots(3);
+        let target_first_pane = ws.slot_pane_states[2].pane_ids[0];
+
+        let mv = move_workspace_slot_into_split(
+            &mut ws,
+            1,
+            3,
+            TerminalSlotDropAction::SplitRight,
+        )
+        .expect("move into split");
+
+        assert_eq!(ws.slot_ids, vec![2, 3]);
+        assert_eq!(ws.terminal_count, 2);
+        assert_eq!(ws.slot_agent_labels, vec!["label1", "label2"]);
+        assert_eq!(mv.source_slot_id, 1);
+        assert_eq!(mv.target_slot_id, 3);
+        assert_eq!(mv.old_pane_id, 1001);
+        assert_eq!(mv.agent_slug, "label0");
+
+        let target = ws.slot_pane_states.last().expect("target pane state");
+        assert_eq!(target.axis, TerminalSplitAxis::Vertical);
+        assert_eq!(target.pane_ids, vec![target_first_pane, mv.new_pane_id]);
+        assert_eq!(target.pane_agents[1].agent_label, "label0");
+        assert_eq!(target.pane_agents[1].agent_model, "model0");
+        assert_eq!(target.pane_agents[1].agent_effort, "effort0");
+    }
+
     fn mk_slots_with_id(id: u64, n: u8) -> WorkspaceEntry {
         let mut ws = mk_slots(n);
         ws.id = id;
@@ -6452,11 +6650,11 @@ mod terminal_slot_tests {
     fn pane_agent_state_uses_pane_values_with_field_fallback() {
         let mut ws = mk_slots(1);
         let pane_id = ws.slot_pane_states[0].pane_ids[0];
-        ws.slot_pane_states[0].pane_agents[0] = SlotPaneAgentState {
+        ws.slot_pane_states[0].pane_agents = vec![SlotPaneAgentState {
             agent_label: "codex".into(),
             agent_model: String::new(),
             agent_effort: "high".into(),
-        };
+        }];
 
         let agent = ws.pane_agent_state(1, pane_id).expect("pane agent");
 
@@ -6476,13 +6674,7 @@ mod terminal_slot_tests {
                     agent_label: "codex".into(),
                     agent_model: String::new(),
                     agent_effort: "high".into(),
-                },
-                SlotPaneAgentState::default(),
-                SlotPaneAgentState {
-                    agent_label: "extra".into(),
-                    agent_model: "extra-model".into(),
-                    agent_effort: "extra-effort".into(),
-                },
+                }
             ],
         };
         let fallback = SlotPaneAgentState {
