@@ -225,7 +225,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 - [x] `dnd-action-from-geometry` - Compute swap/split direction from dragover cursor and target rect
 - [x] `dnd-drop-dispatch` - Dispatch swap for center drops and move-into-split for edge drops
 - [x] `dnd-drop-validation` - Preserve WebView2-safe dragenter/dragover acceptance and final drop revalidation
-- [ ] `split-drop-overlay-css` - Add directional CSS overlays matching the screenshots
+- [x] `split-drop-overlay-css` - Add directional CSS overlays matching the screenshots
 - [ ] `split-drop-hints` - Render "Swap" and split direction labels from i18n
 - [ ] `split-drop-i18n` - Add split direction locale strings to all locale modules
 - [ ] `drag-preview-regression` - Confirm existing floating drag preview and source dimming still work

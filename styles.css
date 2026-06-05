@@ -8945,6 +8945,36 @@ button {
     0 0 24px 0 color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
+.ws-term-slot--drag-over::before {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  border: 2px dashed color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.ws-term-slot--drop-swap::before {
+  inset: 0;
+}
+
+.ws-term-slot--drop-split-top::before {
+  inset: 0 0 50% 0;
+}
+
+.ws-term-slot--drop-split-bottom::before {
+  inset: 50% 0 0 0;
+}
+
+.ws-term-slot--drop-split-left::before {
+  inset: 0 50% 0 0;
+}
+
+.ws-term-slot--drop-split-right::before {
+  inset: 0 0 0 50%;
+}
+
 .ws-term-grid--drag-active .ws-term-slot:not(.ws-term-slot--drag-source) .ws-term-cell__xterm {
   pointer-events: none;
 }

@@ -1328,13 +1328,17 @@ fn TerminalSlotSurface(
             .get()
             .is_some_and(|m| m.workspace_id == workspace_id && m.slot_id == slot_id)
     });
-    let is_drop_over = Memo::new(move |_| {
-        is_potential_target.get()
-            && slot_dnd
-                .ghost
-                .get()
-                .is_some_and(|g| g.target_slot_id == slot_id)
+    let drop_action = Memo::new(move |_| {
+        if !is_potential_target.get() {
+            return None;
+        }
+        slot_dnd
+            .ghost
+            .get()
+            .filter(|ghost| ghost.target_slot_id == slot_id)
+            .map(|ghost| ghost.action)
     });
+    let is_drop_over = Memo::new(move |_| drop_action.get().is_some());
 
     // Push every change back into the workspace so the workbench
     // auto-save effect can persist it. set_slot_panes deduplicates so
@@ -1363,6 +1367,21 @@ fn TerminalSlotSurface(
                 }
                 if is_drop_over.get() {
                     class.push_str(" ws-term-slot--drag-over");
+                    match drop_action.get().unwrap_or(TerminalSlotDropAction::Swap) {
+                        TerminalSlotDropAction::Swap => class.push_str(" ws-term-slot--drop-swap"),
+                        TerminalSlotDropAction::SplitTop => {
+                            class.push_str(" ws-term-slot--drop-split-top");
+                        }
+                        TerminalSlotDropAction::SplitBottom => {
+                            class.push_str(" ws-term-slot--drop-split-bottom");
+                        }
+                        TerminalSlotDropAction::SplitLeft => {
+                            class.push_str(" ws-term-slot--drop-split-left");
+                        }
+                        TerminalSlotDropAction::SplitRight => {
+                            class.push_str(" ws-term-slot--drop-split-right");
+                        }
+                    }
                 }
                 if canvas_mode.get() {
                     class.push_str(" ws-term-slot--canvas-node");
