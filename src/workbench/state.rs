@@ -6,8 +6,8 @@ use crate::config::{
 };
 use crate::tauri_bridge::{
     agent_environment_invalidate, is_tauri_shell, workbench_drop_sessions,
-    workbench_extract_sessions_prefix, workbench_merge_sessions_workspace,
-    workbench_rewrite_terminal_keys, AgentNotification, TimelineDiagram,
+    workbench_extract_sessions_prefix, workbench_merge_sessions_workspace, AgentNotification,
+    TimelineDiagram,
 };
 use crate::workbench::agent_timeline::TimelineDoc;
 use crate::workbench::terminal_agent_profiles::{
@@ -1951,13 +1951,6 @@ pub struct TerminalSlotSplitMove {
 }
 
 impl TerminalSlotSplitMove {
-    #[cfg_attr(
-        not(test),
-        expect(
-        dead_code,
-        reason = "used by the follow-up split move adoption task"
-        )
-    )]
     #[must_use]
     pub fn terminal_key_pair(&self) -> (String, String) {
         (
@@ -3796,7 +3789,10 @@ impl WorkbenchService {
                     )
                 });
         });
-        result
+        let mv = result?;
+        let pair = mv.terminal_key_pair();
+        self.begin_terminal_move(&[pair]);
+        Ok(mv)
     }
 
     /// True while the source cell's `terminal_key` is mid-transfer. The
@@ -3878,33 +3874,41 @@ impl WorkbenchService {
         });
         // Tauri-side key rewrite — fire and forget; failure is non-fatal
         // (resume/unread will fall back to the next regular sync).
-        if is_tauri_shell() {
-            let owned: Vec<(String, String)> = pairs.to_vec();
-            spawn_local(async move {
-                if let Err(err) = workbench_rewrite_terminal_keys(owned).await {
-                    leptos::logging::warn!("workbench_rewrite_terminal_keys: {err}");
-                }
-            });
+        #[cfg(target_arch = "wasm32")]
+        {
+            if is_tauri_shell() {
+                let owned: Vec<(String, String)> = pairs.to_vec();
+                spawn_local(async move {
+                    if let Err(err) =
+                        crate::tauri_bridge::workbench_rewrite_terminal_keys(owned).await
+                    {
+                        leptos::logging::warn!("workbench_rewrite_terminal_keys: {err}");
+                    }
+                });
+            }
         }
         // Drop guards after a brief window so a never-mounted target
         // (e.g. workspace closed mid-transfer) doesn't keep leaking the
         // skip-kill bit forever.
-        let svc = *self;
-        let old_keys: Vec<String> = pairs.iter().map(|(o, _)| o.clone()).collect();
-        let new_keys: Vec<String> = pairs.iter().map(|(_, n)| n.clone()).collect();
-        spawn_local(async move {
-            TimeoutFuture::new(5_000).await;
-            svc.terminal_move_guards.update(|m| {
-                for k in &old_keys {
-                    m.remove(k);
-                }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let svc = *self;
+            let old_keys: Vec<String> = pairs.iter().map(|(o, _)| o.clone()).collect();
+            let new_keys: Vec<String> = pairs.iter().map(|(_, n)| n.clone()).collect();
+            spawn_local(async move {
+                TimeoutFuture::new(5_000).await;
+                svc.terminal_move_guards.update(|m| {
+                    for k in &old_keys {
+                        m.remove(k);
+                    }
+                });
+                svc.terminal_adopt_pending.update(|m| {
+                    for k in &new_keys {
+                        m.remove(k);
+                    }
+                });
             });
-            svc.terminal_adopt_pending.update(|m| {
-                for k in &new_keys {
-                    m.remove(k);
-                }
-            });
-        });
+        }
     }
 
     /// Move a terminal slot from one workspace to another. Reuses the
@@ -6702,6 +6706,47 @@ mod terminal_slot_tests {
             let ws = svc.workspaces.with_untracked(|items| items[0].clone());
             assert_eq!(ws.slot_ids, vec![2]);
             assert_eq!(ws.slot_pane_states[0].pane_ids.len(), 2);
+        });
+    }
+
+    #[test]
+    fn service_move_terminal_slot_into_split_sets_adoption_guards() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            svc.workspaces.set(vec![mk_slots(2)]);
+            let old_key = "ws-storage:1:1001".to_string();
+            svc.register_pty_session(old_key.clone(), 42);
+            svc.notifications.update(|m| {
+                m.insert(old_key.clone(), 7);
+            });
+            svc.focused_terminal_by_workspace.update(|m| {
+                m.insert("ws-storage".into(), old_key.clone());
+            });
+
+            let mv = svc
+                .move_terminal_slot_into_split(1, 1, 2, TerminalSlotDropAction::SplitRight)
+                .expect("service split move");
+            let (old, new) = mv.terminal_key_pair();
+
+            assert_eq!(old, old_key);
+            assert_eq!(svc.pty_sessions.with_untracked(|m| m.get(&new).copied()), Some(42));
+            assert!(!svc.pty_sessions.with_untracked(|m| m.contains_key(&old)));
+            assert_eq!(
+                svc.terminal_adopt_pending
+                    .with_untracked(|m| m.get(&new).copied()),
+                Some(42)
+            );
+            assert_eq!(
+                svc.terminal_move_guards
+                    .with_untracked(|m| m.get(&old).cloned()),
+                Some(new.clone())
+            );
+            assert_eq!(svc.notifications.with_untracked(|m| m.get(&new).copied()), Some(7));
+            assert_eq!(
+                svc.focused_terminal_by_workspace
+                    .with_untracked(|m| m.get("ws-storage").cloned()),
+                Some(new)
+            );
         });
     }
 
