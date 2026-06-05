@@ -3792,6 +3792,7 @@ impl WorkbenchService {
         let mv = result?;
         let pair = mv.terminal_key_pair();
         self.begin_terminal_move(&[pair]);
+        self.bump_terminal_layout();
         Ok(mv)
     }
 
@@ -6697,6 +6698,7 @@ mod terminal_slot_tests {
         Owner::new().with(|| {
             let svc = test_service();
             svc.workspaces.set(vec![mk_slots(2)]);
+            let before_tick = svc.terminal_layout_tick.get_untracked();
 
             let mv = svc
                 .move_terminal_slot_into_split(1, 1, 2, TerminalSlotDropAction::SplitRight)
@@ -6706,6 +6708,7 @@ mod terminal_slot_tests {
             let ws = svc.workspaces.with_untracked(|items| items[0].clone());
             assert_eq!(ws.slot_ids, vec![2]);
             assert_eq!(ws.slot_pane_states[0].pane_ids.len(), 2);
+            assert_ne!(svc.terminal_layout_tick.get_untracked(), before_tick);
         });
     }
 

@@ -209,7 +209,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 - [x] `move-into-split-keypair` - Return old-to-new terminal key pair for the moved pane
 - [x] `move-into-split-service` - Add `WorkbenchService::move_terminal_slot_into_split` wrapper
 - [x] `move-into-split-adoption` - Reuse existing move-guard/adopt and Tauri key rewrite flow for same-workspace split moves
-- [ ] `move-into-split-layout-tick` - Bump terminal layout after the move so xterm panes refit
+- [x] `move-into-split-layout-tick` - Bump terminal layout after the move so xterm panes refit
 
 ### P3 Rendering And Runtime Lookups
 
