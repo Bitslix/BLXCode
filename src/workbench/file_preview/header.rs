@@ -4,7 +4,7 @@
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::FileMeta;
+use crate::tauri_bridge::{self, FileMeta, PopoutPayload};
 use crate::workbench::file_preview::editor::policy::Editability;
 use crate::workbench::file_preview::editor::{EditMode, EditorSession};
 use crate::workbench::file_preview::util::{format_bytes, format_mtime, icon_for_kind};
@@ -58,6 +58,11 @@ pub fn FilePreviewHeader(
 
     let path_title = rel_path.clone();
     let path_text = rel_path.clone();
+    let mermaid_popout_path = rel_path.clone();
+    let is_mermaid_preview = move || {
+        let lower = mermaid_popout_path.to_ascii_lowercase();
+        lower.ends_with(".mmd") || lower.ends_with(".mermaid")
+    };
 
     // --- Editor state derivations ---
     let editing = move || matches!(session.mode.get(), EditMode::Edit);
@@ -140,6 +145,34 @@ pub fn FilePreviewHeader(
                 </div>
             </div>
             <div class="file-preview__actions">
+                <Show when=is_mermaid_preview>
+                    <button
+                        type="button"
+                        class="workbench-mini-btn"
+                        title=move || i18n.tr(I18nKey::PopoutMermaid)()
+                        aria-label=move || i18n.tr(I18nKey::PopoutMermaid)()
+                        on:click={
+                            let rel_path = rel_path.clone();
+                            move |_| {
+                                let Some(workspace_id) = wb.active_id().get_untracked() else {
+                                    return;
+                                };
+                                let payload = PopoutPayload::MermaidFile {
+                                    workspace_id,
+                                    rel_path: rel_path.clone(),
+                                };
+                                leptos::task::spawn_local(async move {
+                                    let _ = tauri_bridge::popout_open(payload).await;
+                                });
+                            }
+                        }
+                    >
+                        <span class="harness-btn-inline">
+                            <LxIcon icon=icondata::LuExternalLink width="0.78rem" height="0.78rem" />
+                            <span>{i18n.tr(I18nKey::PopoutOpen)}</span>
+                        </span>
+                    </button>
+                </Show>
                 <Show when=can_show_edit>
                     <button
                         type="button"

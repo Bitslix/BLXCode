@@ -50,6 +50,26 @@
   border-color: var(--accent-cool);
 }
 
+.file-diff-view__popout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.55rem;
+  height: 1.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.file-diff-view__popout:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--overlay-2);
+}
+
 .file-diff-view__body {
   flex: 1 1 auto;
   min-height: 0;

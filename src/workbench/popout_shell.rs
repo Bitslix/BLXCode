@@ -1,10 +1,14 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    is_tauri_shell, window_current_close, window_current_is_maximized, window_current_minimize,
+    is_tauri_shell, popout_close_current, window_current_is_maximized, window_current_minimize,
     window_current_toggle_maximize, workbench_load_state, PopoutPayload,
 };
 use crate::workbench::app_prefs::AppPrefsService;
+use crate::workbench::diagram_gallery::{DiagramGallery, GalleryScope};
+use crate::workbench::file_diff::FileDiffDock;
+use crate::workbench::file_preview::FilePreviewDock;
+use crate::workbench::memory_panel::MemoryPanel;
 use crate::workbench::terminal_cell::WorkspaceTerminalCell;
 use crate::workbench::toast::ToastService;
 use crate::workbench::state::{WorkbenchService, WorkbenchSnapshot};
@@ -76,7 +80,36 @@ pub fn PopoutShell(payload: PopoutPayload) -> impl IntoView {
                                 terminal_key=terminal_key
                             />
                         }.into_any(),
-                        _ => view! { <PopoutPlaceholder title=title_store.get_value() /> }.into_any(),
+                        PopoutPayload::Memory { workspace_id, .. } => view! {
+                            <WorkspaceScopedPopout workspace_id=workspace_id>
+                                <MemoryPanel centered=true />
+                            </WorkspaceScopedPopout>
+                        }.into_any(),
+                        PopoutPayload::MemoryGraph { workspace_id } => view! {
+                            <WorkspaceScopedPopout workspace_id=workspace_id>
+                                <MemoryPanel centered=true />
+                            </WorkspaceScopedPopout>
+                        }.into_any(),
+                        PopoutPayload::MermaidFile { workspace_id, rel_path } => view! {
+                            <WorkspaceScopedPopout workspace_id=workspace_id>
+                                <FilePreviewDock workspace_id=workspace_id rel_path=rel_path />
+                            </WorkspaceScopedPopout>
+                        }.into_any(),
+                        PopoutPayload::DiagramGallery { workspace_id, scope } => {
+                            match serde_json::from_value::<GalleryScope>(scope) {
+                                Ok(scope) => view! {
+                                    <WorkspaceScopedPopout workspace_id=workspace_id>
+                                        <DiagramGallery workspace_id=workspace_id scope=scope />
+                                    </WorkspaceScopedPopout>
+                                }.into_any(),
+                                Err(_) => view! { <PopoutPlaceholder title=title_store.get_value() /> }.into_any(),
+                            }
+                        }
+                        PopoutPayload::FileDiff { workspace_id, rel_path, staged } => view! {
+                            <WorkspaceScopedPopout workspace_id=workspace_id>
+                                <FileDiffDock workspace_id=workspace_id rel_path=rel_path staged=staged />
+                            </WorkspaceScopedPopout>
+                        }.into_any(),
                     }}
                 </Show>
             </main>
@@ -86,10 +119,27 @@ pub fn PopoutShell(payload: PopoutPayload) -> impl IntoView {
 
 #[component]
 fn PopoutPlaceholder(title: String) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     view! {
         <div class="workbench-popout-shell__placeholder">
-            <span class="workbench-popout-shell__eyebrow">"BLXCode Popout"</span>
+            <span class="workbench-popout-shell__eyebrow">{i18n.tr(I18nKey::PopoutPlaceholderEyebrow)}</span>
             <h1>{title}</h1>
+        </div>
+    }
+}
+
+#[component]
+fn WorkspaceScopedPopout(workspace_id: u64, children: Children) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    Effect::new(move |_| {
+        if wb.active_id().get_untracked() != Some(workspace_id) {
+            wb.select_workspace(workspace_id);
+        }
+    });
+
+    view! {
+        <div class="workbench-popout-view">
+            {children()}
         </div>
     }
 }
@@ -199,7 +249,7 @@ fn PopoutTitleBar(title: String) -> impl IntoView {
     let on_close = move |_| {
         if is_tauri_shell() {
             spawn_local(async move {
-                let _ = window_current_close().await;
+                let _ = popout_close_current().await;
             });
         }
     };

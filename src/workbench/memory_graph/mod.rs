@@ -3,7 +3,7 @@ mod graph_glue;
 use crate::i18n::I18nKey;
 use crate::open_http::{dom_click_nav_href, DomNavHref};
 use crate::service::I18nService;
-use crate::tauri_bridge::{self, GraphData, MemoryScope, NoteContent};
+use crate::tauri_bridge::{self, GraphData, MemoryScope, NoteContent, PopoutPayload};
 use crate::workbench::agent_context_handoff::HandoffMenu;
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::memory_graph::graph_glue::{
@@ -205,8 +205,25 @@ fn GraphToolbar(
     zoom_tick: RwSignal<i32>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let wb = expect_context::<WorkbenchService>();
     view! {
         <div class="workbench-memory-graph__toolbar" role="toolbar">
+            <button
+                type="button"
+                class="workbench-memory-graph__btn"
+                title=move || i18n.tr(I18nKey::PopoutMemoryGraph)()
+                aria-label=move || i18n.tr(I18nKey::PopoutMemoryGraph)()
+                on:click=move |_| {
+                    let Some(workspace_id) = wb.active_id().get_untracked() else {
+                        return;
+                    };
+                    spawn_local(async move {
+                        let _ = tauri_bridge::popout_open(PopoutPayload::MemoryGraph { workspace_id }).await;
+                    });
+                }
+            >
+                <LxIcon icon=icondata::LuExternalLink width="0.86rem" height="0.86rem" />
+            </button>
             <button
                 type="button"
                 class="workbench-memory-graph__btn"

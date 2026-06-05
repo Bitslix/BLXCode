@@ -11,7 +11,7 @@ use crate::memory_paths::slug_to_filename;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     self, note_key, BacklinkRef, GraphData, MemoryScope, MemoryStatusResponse, NoteContent,
-    NoteMeta, PointerResult, SearchHit,
+    NoteMeta, PointerResult, PopoutPayload, SearchHit,
 };
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::memory_graph::{navigate_to_graph_node, MemoryGraphView};
@@ -480,6 +480,50 @@ pub fn MemoryPanel(
                 <MemoryTabBtn label=I18nKey::MemTabGraph state=state.clone() target=MemoryView::Graph icon=icondata::LuNetwork />
                 <MemoryTabBtn label=I18nKey::MemTabSearch state=state.clone() target=MemoryView::Search icon=icondata::LuSearch />
                 <div class="workbench-memory__actions">
+                    <button
+                        type="button"
+                        class="workbench-memory__action"
+                        title=move || {
+                            if state.view.get() == MemoryView::Graph {
+                                i18n.tr(I18nKey::PopoutMemoryGraph)()
+                            } else {
+                                i18n.tr(I18nKey::PopoutMemory)()
+                            }
+                        }
+                        aria-label=move || {
+                            if state.view.get() == MemoryView::Graph {
+                                i18n.tr(I18nKey::PopoutMemoryGraph)()
+                            } else {
+                                i18n.tr(I18nKey::PopoutMemory)()
+                            }
+                        }
+                        on:click={
+                            let state = state.clone();
+                            move |_| {
+                                let Some(workspace_id) = wb.active_id().get_untracked() else {
+                                    return;
+                                };
+                                let view_name = match state.view.get_untracked() {
+                                    MemoryView::Files => "files",
+                                    MemoryView::Graph => "graph",
+                                    MemoryView::Search => "search",
+                                };
+                                let payload = if state.view.get_untracked() == MemoryView::Graph {
+                                    PopoutPayload::MemoryGraph { workspace_id }
+                                } else {
+                                    PopoutPayload::Memory {
+                                        workspace_id,
+                                        initial_view: Some(view_name.to_string()),
+                                    }
+                                };
+                                spawn_local(async move {
+                                    let _ = tauri_bridge::popout_open(payload).await;
+                                });
+                            }
+                        }
+                    >
+                        <LxIcon icon=icondata::LuExternalLink width="0.78rem" height="0.78rem" />
+                    </button>
                     {split_view.map(|split_view| {
                         view! {
                             <button

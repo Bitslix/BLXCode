@@ -1619,10 +1619,14 @@ fn TerminalSlotSurface(
                                             <div class="ws-term-cell ws-term-cell--popout-placeholder">
                                                 <div class="ws-term-cell__head">
                                                     <span class="ws-term-cell__slot">{format!("#{slot_id}")}</span>
-                                                    <span class="ws-term-cell__title">"Terminal popped out"</span>
+                                                    <span class="ws-term-cell__title">
+                                                        {move || i18n.tr(I18nKey::PopoutTerminalPlaceholder)()}
+                                                    </span>
                                                     <button
                                                         type="button"
                                                         class="ws-term-cell__tool"
+                                                        title=move || i18n.tr(I18nKey::PopoutFocus)()
+                                                        aria-label=move || i18n.tr(I18nKey::PopoutFocus)()
                                                         on:click=move |_| {
                                                             let label = label.clone();
                                                             spawn_local(async move {
