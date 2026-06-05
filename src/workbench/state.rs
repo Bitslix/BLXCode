@@ -6753,6 +6753,32 @@ mod terminal_slot_tests {
         });
     }
 
+    #[test]
+    fn terminal_key_agent_launch_metadata_uses_pane_agent_state() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            let mut ws = mk_slots(1);
+            let pane_id = ws.slot_pane_states[0].pane_ids[0];
+            ws.slot_pane_states[0].pane_agents = vec![SlotPaneAgentState {
+                agent_label: "codex".into(),
+                agent_model: "gpt-5".into(),
+                agent_effort: "high".into(),
+            }];
+            svc.workspaces.set(vec![ws]);
+            let key = format!("ws-storage:1:{pane_id}");
+
+            assert_eq!(svc.agent_slug_for_terminal_key(&key), Some("codex".into()));
+            assert_eq!(
+                svc.agent_model_for_terminal_key(&key),
+                Some("gpt-5".into())
+            );
+            assert_eq!(
+                svc.agent_effort_for_terminal_key(&key),
+                Some("high".into())
+            );
+        });
+    }
+
     fn mk_slots_with_id(id: u64, n: u8) -> WorkspaceEntry {
         let mut ws = mk_slots(n);
         ws.id = id;
