@@ -3,6 +3,10 @@ import {
   BLXCode050Announcement,
   BLXCODE_050_ANNOUNCEMENT_DURATION,
 } from "./compositions/Announcement050/Announcement050";
+import {
+  BLXCode051Announcement,
+  BLXCODE_051_ANNOUNCEMENT_DURATION,
+} from "./compositions/Announcement051/Announcement051";
 import { HelloWorld } from "./compositions/HelloWorld/HelloWorld";
 import { ReleaseTrailer, RELEASE_TRAILER_DURATION } from "./compositions/ReleaseTrailer/ReleaseTrailer";
 import { SneakPeekTrailer, SNEAK_PEEK_TRAILER_DURATION } from "./compositions/SneakPeekTrailer/SneakPeekTrailer";
@@ -29,6 +33,14 @@ export const Root: React.FC = () => {
         id="BLXCode050Announcement"
         component={BLXCode050Announcement}
         durationInFrames={BLXCODE_050_ANNOUNCEMENT_DURATION}
+        fps={FPS}
+        width={TRAILER_WIDTH}
+        height={TRAILER_HEIGHT}
+      />
+      <Composition
+        id="BLXCode051Announcement"
+        component={BLXCode051Announcement}
+        durationInFrames={BLXCODE_051_ANNOUNCEMENT_DURATION}
         fps={FPS}
         width={TRAILER_WIDTH}
         height={TRAILER_HEIGHT}

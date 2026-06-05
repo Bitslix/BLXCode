@@ -11,6 +11,8 @@
     "build:trailer:image": "remotion still ReleaseTrailer out/release-trailer.png --frame=200",
     "build:050": "remotion render BLXCode050Announcement out/blxcode-v0.5.0-announcement.mp4",
     "build:050:image": "remotion still BLXCode050Announcement out/blxcode-v0.5.0-announcement.png --frame=400",
+    "build:051": "remotion render BLXCode051Announcement out/blxcode-v0.5.1-announcement.mp4",
+    "build:051:image": "remotion still BLXCode051Announcement out/blxcode-v0.5.1-announcement.png --frame=360",
     "build:sneak": "remotion render SneakPeekTrailer out/sneak-peek-trailer.mp4",
     "build:sneak:image": "remotion still SneakPeekTrailer out/sneak-peek-trailer.png --frame=200",
     "typecheck": "tsc --noEmit",
