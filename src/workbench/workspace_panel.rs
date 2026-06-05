@@ -1,6 +1,8 @@
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
-use crate::tauri_bridge::{agent_session_roles_list, pty_peek_output, pty_write, SessionRoleView};
+use crate::tauri_bridge::{
+    agent_session_roles_list, popout_focus, pty_peek_output, pty_write, SessionRoleView,
+};
 use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::browser_tab::sync_embedded_browser_layer;
 use crate::workbench::create_workspace_wizard::WorkspaceConfigurator;
@@ -1575,6 +1577,12 @@ fn TerminalSlotSurface(
                                 .unwrap_or_default()
                         });
                         let terminal_key = format!("{storage_key}:{slot_id}:{pane_id}");
+                        let popout_key = terminal_key.clone();
+                        let popout_label = Signal::derive(move || wb.terminal_popout_label(&popout_key));
+                        let cwd_store = StoredValue::new(cwd.clone());
+                        let agent_slug_store = StoredValue::new(agent_slug.clone());
+                        let title_store = StoredValue::new(title.clone());
+                        let terminal_key_store = StoredValue::new(terminal_key.clone());
                         view! {
                             <div class="ws-canvas-pane-wrap">
                                 <Show when=move || canvas_mode.get() && pane_ids.with(|ids| ids.len() > 1)>
@@ -1603,25 +1611,52 @@ fn TerminalSlotSurface(
                                         on_port=on_canvas_port
                                     />
                                 </Show>
-                                <WorkspaceTerminalCell
-                                    workspace_id=workspace_id
-                                    slot_id=slot_id
-                                    pane_id=pane_id
-                                    cwd=cwd.clone()
-                                    grid_index=index
-                                    agent_slug=agent_slug.clone()
-                                    title=title
-                                    terminal_key=terminal_key
-                                    is_workspace_active=is_workspace_active
-                                    is_slot_hidden=hidden
-                                    is_full_size=is_full_size
-                                    on_full_size=on_full_size
-                                    on_split_vertical=on_split_vertical
-                                    on_split_horizontal=on_split_horizontal
-                                    on_close=on_close
-                                    can_close=can_close
-                                    slot_drag_enabled=Signal::derive(move || can_drag_slot.get())
-                                />
+                                <Show
+                                    when=move || popout_label.get().is_none()
+                                    fallback=move || {
+                                        let label = popout_label.get().unwrap_or_default();
+                                        view! {
+                                            <div class="ws-term-cell ws-term-cell--popout-placeholder">
+                                                <div class="ws-term-cell__head">
+                                                    <span class="ws-term-cell__slot">{format!("#{slot_id}")}</span>
+                                                    <span class="ws-term-cell__title">"Terminal popped out"</span>
+                                                    <button
+                                                        type="button"
+                                                        class="ws-term-cell__tool"
+                                                        on:click=move |_| {
+                                                            let label = label.clone();
+                                                            spawn_local(async move {
+                                                                let _ = popout_focus(label).await;
+                                                            });
+                                                        }
+                                                    >
+                                                        <LxIcon icon=icondata::LuExternalLink width="0.82rem" height="0.82rem" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+                                >
+                                    <WorkspaceTerminalCell
+                                        workspace_id=workspace_id
+                                        slot_id=slot_id
+                                        pane_id=pane_id
+                                        cwd=cwd_store.get_value()
+                                        grid_index=index
+                                        agent_slug=agent_slug_store.get_value()
+                                        title=title_store.get_value()
+                                        terminal_key=terminal_key_store.get_value()
+                                        is_workspace_active=is_workspace_active
+                                        is_slot_hidden=hidden
+                                        is_full_size=is_full_size
+                                        on_full_size=on_full_size
+                                        on_split_vertical=on_split_vertical
+                                        on_split_horizontal=on_split_horizontal
+                                        on_close=on_close
+                                        can_close=can_close
+                                        slot_drag_enabled=Signal::derive(move || can_drag_slot.get())
+                                    />
+                                </Show>
                             </div>
                         }
                     }

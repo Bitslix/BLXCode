@@ -2,25 +2,160 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     is_tauri_shell, window_current_close, window_current_is_maximized, window_current_minimize,
-    window_current_toggle_maximize, PopoutPayload,
+    window_current_toggle_maximize, workbench_load_state, PopoutPayload,
 };
+use crate::workbench::app_prefs::AppPrefsService;
+use crate::workbench::terminal_cell::WorkspaceTerminalCell;
+use crate::workbench::toast::ToastService;
+use crate::workbench::state::{WorkbenchService, WorkbenchSnapshot};
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
+use leptos::callback::Callback;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 
 #[component]
 pub fn PopoutShell(payload: PopoutPayload) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let prefs = AppPrefsService::new();
+    let toast = ToastService::new(prefs);
+    provide_context(prefs);
+    provide_context(toast);
+
     let title = payload.fallback_title();
+    let title_store = StoredValue::new(title.clone());
+    let payload_store = StoredValue::new(payload);
+    let hydrated = RwSignal::new(!is_tauri_shell());
+
+    Effect::new(move |_| {
+        if !is_tauri_shell() || hydrated.get_untracked() {
+            return;
+        }
+        spawn_local(async move {
+            match workbench_load_state().await {
+                Ok(Some(json)) => match serde_json::from_str::<WorkbenchSnapshot>(&json) {
+                    Ok(mut snap) => {
+                        let _ = snap.backfill_storage_keys();
+                        hydrated.set(wb.hydrate(snap));
+                    }
+                    Err(err) => {
+                        leptos::logging::warn!("popout workbench state parse: {err}");
+                        hydrated.set(true);
+                    }
+                },
+                Ok(None) => hydrated.set(true),
+                Err(err) => {
+                    leptos::logging::warn!("popout workbench state load: {err}");
+                    hydrated.set(true);
+                }
+            }
+        });
+    });
+
     view! {
         <div class="workbench-popout-shell">
             <PopoutTitleBar title=title.clone() />
             <main class="workbench-popout-shell__body">
-                <div class="workbench-popout-shell__placeholder">
-                    <span class="workbench-popout-shell__eyebrow">"BLXCode Popout"</span>
-                    <h1>{title}</h1>
-                </div>
+                <Show
+                    when=move || hydrated.get()
+                    fallback=move || view! {
+                        <PopoutPlaceholder title=title.clone() />
+                    }
+                >
+                    {move || match payload_store.get_value() {
+                        PopoutPayload::Terminal {
+                            workspace_id,
+                            slot_id,
+                            pane_id,
+                            terminal_key,
+                        } => view! {
+                            <TerminalPopoutView
+                                workspace_id=workspace_id
+                                slot_id=slot_id
+                                pane_id=pane_id
+                                terminal_key=terminal_key
+                            />
+                        }.into_any(),
+                        _ => view! { <PopoutPlaceholder title=title_store.get_value() /> }.into_any(),
+                    }}
+                </Show>
             </main>
+        </div>
+    }
+}
+
+#[component]
+fn PopoutPlaceholder(title: String) -> impl IntoView {
+    view! {
+        <div class="workbench-popout-shell__placeholder">
+            <span class="workbench-popout-shell__eyebrow">"BLXCode Popout"</span>
+            <h1>{title}</h1>
+        </div>
+    }
+}
+
+#[component]
+fn TerminalPopoutView(
+    workspace_id: u64,
+    slot_id: u64,
+    pane_id: u64,
+    terminal_key: String,
+) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let terminal = Memo::new(move |_| {
+        wb.workspaces().with(|workspaces| {
+            let ws = workspaces.iter().find(|ws| ws.id == workspace_id)?;
+            let index = ws.slot_ids.iter().position(|id| *id == slot_id)?;
+            Some((
+                ws.cwd.clone(),
+                ws.slot_agent_labels
+                    .get(index)
+                    .cloned()
+                    .unwrap_or_default(),
+                format!("Terminal {slot_id}"),
+                index,
+            ))
+        })
+    });
+
+    let active = Signal::derive(move || true);
+    let hidden = Signal::derive(move || false);
+    let full_size = Signal::derive(move || false);
+    let can_close = Signal::derive(move || false);
+    let drag_enabled = Signal::derive(move || false);
+    let noop = Callback::new(|()| {});
+
+    view! {
+        <div class="workbench-popout-terminal">
+            {move || {
+                let Some((cwd, agent_slug, title, index)) = terminal.get() else {
+                    return view! {
+                        <PopoutPlaceholder title=terminal_key.clone() />
+                    }.into_any();
+                };
+                view! {
+                    <WorkspaceTerminalCell
+                        workspace_id=workspace_id
+                        slot_id=slot_id
+                        pane_id=pane_id
+                        cwd=cwd
+                        grid_index=index
+                        agent_slug=agent_slug
+                        title=title
+                        terminal_key=terminal_key.clone()
+                        is_workspace_active=active
+                        is_slot_hidden=hidden
+                        is_full_size=full_size
+                        on_full_size=noop
+                        on_split_vertical=noop
+                        on_split_horizontal=noop
+                        on_close=noop
+                        can_close=can_close
+                        slot_drag_enabled=drag_enabled
+                        popout_surface=true
+                    />
+                }.into_any()
+            }}
         </div>
     }
 }

@@ -23,6 +23,7 @@ pub struct PtyManager {
 struct PtyInner {
     next_id: u64,
     sessions: HashMap<u64, PtySession>,
+    sessions_by_terminal_key: HashMap<String, u64>,
 }
 
 struct PtySession {
@@ -95,6 +96,7 @@ impl Default for PtyManager {
             inner: Mutex::new(PtyInner {
                 next_id: 1,
                 sessions: HashMap::new(),
+                sessions_by_terminal_key: HashMap::new(),
             }),
         }
     }
@@ -112,6 +114,11 @@ impl PtyManager {
         }
         if !cwd.is_dir() {
             return Err("cwd is not a directory".into());
+        }
+
+        let terminal_key = terminal_key_from_env(&extra_env);
+        if let Some(session_id) = self.session_for_terminal_key(terminal_key.as_deref())? {
+            return Ok(session_id);
         }
 
         let pty_system = native_pty_system();
@@ -150,7 +157,35 @@ impl PtyManager {
             .spawn_command(cmd)
             .map_err(|e| format!("spawn shell: {e}"))?;
 
-        self.register_session(pair, child, None)
+        let session_id = self.register_session(pair, child, None)?;
+        self.bind_terminal_key(terminal_key, session_id)?;
+        Ok(session_id)
+    }
+
+    fn session_for_terminal_key(&self, terminal_key: Option<&str>) -> Result<Option<u64>, String> {
+        let Some(terminal_key) = terminal_key.filter(|key| !key.trim().is_empty()) else {
+            return Ok(None);
+        };
+        let g = self.inner.lock().map_err(|_| "pty lock")?;
+        let Some(session_id) = g.sessions_by_terminal_key.get(terminal_key).copied() else {
+            return Ok(None);
+        };
+        Ok(g.sessions.contains_key(&session_id).then_some(session_id))
+    }
+
+    fn bind_terminal_key(
+        &self,
+        terminal_key: Option<String>,
+        session_id: u64,
+    ) -> Result<(), String> {
+        let Some(terminal_key) = terminal_key.filter(|key| !key.trim().is_empty()) else {
+            return Ok(());
+        };
+        let mut g = self.inner.lock().map_err(|_| "pty lock")?;
+        if g.sessions.contains_key(&session_id) {
+            g.sessions_by_terminal_key.insert(terminal_key, session_id);
+        }
+        Ok(())
     }
 
     /// Shared session bookkeeping for both local and remote (ssh) PTYs:
@@ -337,6 +372,8 @@ impl PtyManager {
     pub fn kill(&self, session_id: u64) -> Result<(), String> {
         let mut g = self.inner.lock().map_err(|_| "pty lock")?;
         if let Some(s) = g.sessions.remove(&session_id) {
+            g.sessions_by_terminal_key
+                .retain(|_, mapped| *mapped != session_id);
             if let Ok(mut ch) = s.child.lock() {
                 let _ = ch.kill();
             }
@@ -350,6 +387,7 @@ impl PtyManager {
     /// (now-killed) local ssh client.
     pub fn kill_all(&self) {
         if let Ok(mut g) = self.inner.lock() {
+            g.sessions_by_terminal_key.clear();
             for (_, s) in g.sessions.drain() {
                 if let Ok(mut ch) = s.child.lock() {
                     let _ = ch.kill();
@@ -377,7 +415,13 @@ impl PtyManager {
         spec: RemoteSpawnSpec,
         extra_env: Vec<(String, String)>,
     ) -> Result<u64, String> {
-        self.spawn_remote_inner(spec, extra_env, None)
+        if let Some(session_id) = self.session_for_terminal_key(Some(&spec.terminal_key))? {
+            return Ok(session_id);
+        }
+        let terminal_key = spec.terminal_key.clone();
+        let session_id = self.spawn_remote_inner(spec, extra_env, None)?;
+        self.bind_terminal_key(Some(terminal_key), session_id)?;
+        Ok(session_id)
     }
 
     fn spawn_remote_inner(
@@ -834,6 +878,13 @@ fn resolve_cd_path(base: &Path, arg: &str) -> Result<PathBuf, String> {
                 Err("not a directory".into())
             }
         })
+}
+
+fn terminal_key_from_env(extra_env: &[(String, String)]) -> Option<String> {
+    extra_env
+        .iter()
+        .find_map(|(key, value)| (key == "BLX_TERMINAL_KEY").then(|| value.trim().to_string()))
+        .filter(|value| !value.is_empty())
 }
 
 #[cfg(test)]

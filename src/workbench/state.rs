@@ -1811,6 +1811,10 @@ pub struct WorkbenchService {
     /// freshly mounted target cell consumes this to skip `pty_spawn` and
     /// reuse the live session instead.
     terminal_adopt_pending: RwSignal<HashMap<String, u64>>,
+    /// Terminal keys currently owned by a popout child window. The value is
+    /// the Tauri window label so the main view can focus the child instead of
+    /// mounting a duplicate xterm renderer.
+    terminal_popouts: RwSignal<HashMap<String, String>>,
 }
 
 /// Cross-workspace terminal slot move; returned by
@@ -1936,6 +1940,7 @@ impl WorkbenchService {
             kanban_plan_focus: RwSignal::new(None),
             terminal_move_guards: RwSignal::new(HashMap::new()),
             terminal_adopt_pending: RwSignal::new(HashMap::new()),
+            terminal_popouts: RwSignal::new(HashMap::new()),
         }
     }
 
@@ -2405,6 +2410,46 @@ impl WorkbenchService {
         self.pty_sessions.update(|m| {
             m.remove(terminal_key);
         });
+    }
+
+    #[must_use]
+    pub fn terminal_popout_label(&self, terminal_key: &str) -> Option<String> {
+        self.terminal_popouts
+            .with(|m| m.get(terminal_key).cloned())
+    }
+
+    pub fn prepare_terminal_popout(&self, terminal_key: &str, label: String) {
+        let key = terminal_key.to_string();
+        if let Some(sid) = self.pty_sessions.with_untracked(|m| m.get(&key).copied()) {
+            self.terminal_move_guards.update(|m| {
+                m.insert(key.clone(), key.clone());
+            });
+            self.terminal_adopt_pending.update(|m| {
+                m.insert(key.clone(), sid);
+            });
+        }
+        self.terminal_popouts.update(|m| {
+            m.insert(key, label);
+        });
+    }
+
+    pub fn prepare_terminal_popout_return(&self, terminal_key: &str) {
+        let key = terminal_key.to_string();
+        if let Some(sid) = self.pty_sessions.with_untracked(|m| m.get(&key).copied()) {
+            self.terminal_move_guards.update(|m| {
+                m.insert(key.clone(), key.clone());
+            });
+            self.terminal_adopt_pending.update(|m| {
+                m.insert(key, sid);
+            });
+        }
+    }
+
+    pub fn clear_terminal_popout(&self, terminal_key: &str) {
+        self.terminal_popouts.update(|m| {
+            m.remove(terminal_key);
+        });
+        self.bump_terminal_layout();
     }
 
     /// Snapshot of all PTY sessions belonging to one workspace, keyed by

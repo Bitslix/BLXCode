@@ -363,6 +363,25 @@
   font-weight: 650;
 }
 
+.workbench-popout-terminal {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  padding: 0.5rem;
+}
+
+.workbench-popout-terminal > .ws-term-cell {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ws-term-cell--popout-placeholder {
+  min-height: 7rem;
+  border-style: dashed;
+  background: var(--overlay-1);
+}
+
 /* ---- Popovers (NAVIGATE + Notifications) ---- */
 .app-titlebar__menu-wrap {
   position: relative;

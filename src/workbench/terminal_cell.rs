@@ -95,6 +95,7 @@ pub fn WorkspaceTerminalCell(
     /// (e.g. last remaining terminal in the workspace with a single pane).
     can_close: Signal<bool>,
     slot_drag_enabled: Signal<bool>,
+    #[prop(default = false)] popout_surface: bool,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let wb = expect_context::<crate::workbench::state::WorkbenchService>();
@@ -490,6 +491,11 @@ pub fn WorkspaceTerminalCell(
             // tear down the agent CLI mid-transfer. The target cell
             // re-registers the session under its own key.
             let moving = wb.is_terminal_key_moving(&terminal_key_cleanup);
+            if popout_surface {
+                wb.prepare_terminal_popout_return(&terminal_key_cleanup);
+                wb.clear_terminal_popout(&terminal_key_cleanup);
+            }
+            let moving = moving || popout_surface;
             if !moving {
                 wb.unregister_pty_session(&terminal_key_cleanup);
             }
