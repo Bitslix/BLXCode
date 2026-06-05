@@ -159,7 +159,9 @@ pub fn App() -> impl IntoView {
 
     view! {
         <div class="app-root">
-            <AppTitleBar workbench_active=workbench_active />
+            <Show when=move || !is_popout>
+                <AppTitleBar workbench_active=workbench_active />
+            </Show>
             <div class="app-root__body">
                 <Show
                     when=move || ui_ready.get()

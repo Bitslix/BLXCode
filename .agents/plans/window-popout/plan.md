@@ -29,7 +29,7 @@ Implement real Tauri child windows for workbench popouts on `feature/window-popo
 - [x] `branch` - Create `feature/window-popout` from `stage`
 - [x] `backend` - Add popout window commands
 - [x] `frontend-route` - Add popout bridge and route
-- [ ] `child-titlebar` - Add child custom titlebar
+- [x] `child-titlebar` - Add child custom titlebar
 - [ ] `terminal-ownership` - Implement move-to-popout terminal ownership
 - [ ] `view-buttons` - Add local popout buttons
 - [ ] `i18n` - Add localized popout labels

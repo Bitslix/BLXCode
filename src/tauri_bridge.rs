@@ -1233,17 +1233,33 @@ pub async fn window_minimize() -> Result<(), String> {
     invoke_unit_js("window_minimize", JsValue::UNDEFINED).await
 }
 
+pub async fn window_current_minimize() -> Result<(), String> {
+    invoke_unit_js("window_current_minimize", JsValue::UNDEFINED).await
+}
+
 /// Toggles maximize/restore; returns the resulting `is_maximized` flag.
 pub async fn window_toggle_maximize() -> Result<bool, String> {
     invoke_typed("window_toggle_maximize", serde_json::json!({})).await
+}
+
+pub async fn window_current_toggle_maximize() -> Result<bool, String> {
+    invoke_typed("window_current_toggle_maximize", serde_json::json!({})).await
 }
 
 pub async fn window_is_maximized() -> Result<bool, String> {
     invoke_typed("window_is_maximized", serde_json::json!({})).await
 }
 
+pub async fn window_current_is_maximized() -> Result<bool, String> {
+    invoke_typed("window_current_is_maximized", serde_json::json!({})).await
+}
+
 pub async fn window_close() -> Result<(), String> {
     invoke_unit_js("window_close", JsValue::UNDEFINED).await
+}
+
+pub async fn window_current_close() -> Result<(), String> {
+    invoke_unit_js("window_current_close", JsValue::UNDEFINED).await
 }
 
 /// Toggles fullscreen; returns the resulting `is_fullscreen` flag.
