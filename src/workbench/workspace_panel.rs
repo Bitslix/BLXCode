@@ -29,7 +29,7 @@ use crate::workbench::terminal_glue::{
 };
 use crate::workbench::terminal_slot_dnd::{
     drag_event_data_transfer, is_terminal_drag, read_drag_payload, GhostPos,
-    TerminalSlotDragService,
+    TerminalSlotDragService, TerminalSlotDropAction,
 };
 use crate::workbench::toast::ToastService;
 use crate::workbench::{WorkbenchService, WorkspaceKanban};
@@ -1415,6 +1415,7 @@ fn TerminalSlotSurface(
                 });
                 slot_dnd.ghost.set(Some(GhostPos {
                     target_slot_id: slot_id,
+                    action: TerminalSlotDropAction::Swap,
                     rows,
                     cols,
                 }));

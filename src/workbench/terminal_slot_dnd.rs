@@ -18,9 +18,23 @@ pub struct TerminalSlotDragPayload {
     pub slot_id: u64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[expect(
+    dead_code,
+    reason = "split variants are wired by the follow-up drop geometry task"
+)]
+pub enum TerminalSlotDropAction {
+    Swap,
+    SplitTop,
+    SplitBottom,
+    SplitLeft,
+    SplitRight,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GhostPos {
     pub target_slot_id: u64,
+    pub action: TerminalSlotDropAction,
     pub rows: u8,
     pub cols: u8,
 }
