@@ -2320,21 +2320,19 @@ impl WorkbenchService {
                 return;
             };
             for (idx, &slot_id) in ws.slot_ids.iter().enumerate() {
-                let slot_agent = ws
-                    .slot_agent_labels
-                    .get(idx)
-                    .map(|s| s.trim().to_ascii_lowercase())
-                    .unwrap_or_default();
-                if slot_agent != agent_slug {
-                    continue;
-                }
                 let panes = ws
                     .slot_pane_states
                     .get(idx)
                     .map(|state| state.pane_ids.clone())
                     .unwrap_or_else(|| SlotPaneState::default_for_slot(slot_id).pane_ids);
                 for pane_id in panes {
-                    keys.push(format!("{}:{}:{}", ws.storage_key, slot_id, pane_id));
+                    let pane_agent = ws
+                        .pane_agent_state(slot_id, pane_id)
+                        .map(|agent| agent.agent_label.trim().to_ascii_lowercase())
+                        .unwrap_or_default();
+                    if pane_agent == agent_slug {
+                        keys.push(format!("{}:{}:{}", ws.storage_key, slot_id, pane_id));
+                    }
                 }
             }
         });
@@ -6776,6 +6774,37 @@ mod terminal_slot_tests {
                 svc.agent_effort_for_terminal_key(&key),
                 Some("high".into())
             );
+        });
+    }
+
+    #[test]
+    fn notification_ack_keys_follow_pane_agent_metadata() {
+        Owner::new().with(|| {
+            let svc = test_service();
+            let mut ws = mk_slots(1);
+            ws.slot_pane_states[0] = SlotPaneState {
+                axis: TerminalSplitAxis::Vertical,
+                pane_ids: vec![1001, 1002],
+                next_pane_id: 1003,
+                pane_agents: vec![
+                    SlotPaneAgentState {
+                        agent_label: "codex".into(),
+                        agent_model: String::new(),
+                        agent_effort: String::new(),
+                    },
+                    SlotPaneAgentState {
+                        agent_label: "claude".into(),
+                        agent_model: String::new(),
+                        agent_effort: String::new(),
+                    },
+                ],
+            };
+            svc.workspaces.set(vec![ws]);
+
+            let keys = svc.notification_ack_keys_for_terminal("ws-storage:1:1001");
+
+            assert!(keys.contains(&"ws-storage:1:1001".to_string()));
+            assert!(!keys.contains(&"ws-storage:1:1002".to_string()));
         });
     }
 

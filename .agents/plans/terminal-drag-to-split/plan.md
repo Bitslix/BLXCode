@@ -215,7 +215,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 
 - [x] `render-pane-agent` - Render each pane with its effective agent slug instead of only the parent slot slug
 - [x] `launch-pane-agent` - Ensure adopted and freshly spawned panes resolve the correct model and effort from terminal key
-- [ ] `notification-pane-agent` - Update notification liveness and ack helpers to understand pane-level agent metadata
+- [x] `notification-pane-agent` - Update notification liveness and ack helpers to understand pane-level agent metadata
 - [ ] `live-keys-pane-meta` - Ensure live terminal keys and pruning still include every pane after split moves
 - [ ] `manual-split-pane-meta` - Update existing split buttons so manually created panes get deterministic metadata
 
