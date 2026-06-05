@@ -30,6 +30,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 
 ### Current Repo Facts
 
+- Dirty-tree guard at implementation start: `git status --short --untracked-files=all` was clean on branch `feature/extend-terminal-dnd`; no unrelated uncommitted files need to be protected from task commits.
 - DnD helper module: `src/workbench/terminal_slot_dnd.rs`.
 - Drag preview module: `src/workbench/terminal_slot_drag_overlay.rs`.
 - Terminal cell component: `src/workbench/terminal_cell.rs`.
@@ -190,7 +191,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 ### P0 Analysis And Safety
 
 - [x] `dnd-state-audit` - Re-read current `TerminalSlotSurface`, `SlotPaneState`, and PTY adoption code before editing
-- [ ] `dirty-tree-guard` - Record current unrelated modified files and avoid reverting user/in-flight changes
+- [x] `dirty-tree-guard` - Record current unrelated modified files and avoid reverting user/in-flight changes
 - [ ] `drop-intent-spec` - Document final geometry thresholds for swap vs split zones in code comments or tests
 
 ### P1 State Model
