@@ -1424,6 +1424,9 @@ fn TerminalSlotSurface(
                 if hidden.get() {
                     class.push_str(" ws-term-slot--hidden");
                 }
+                if pane_ids.with(|ids| ids.len() > 1) {
+                    class.push_str(" ws-term-slot--split");
+                }
                 if is_drag_source.get() {
                     class.push_str(" ws-term-slot--drag-source");
                 } else if is_potential_target.get() {
