@@ -228,7 +228,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 - [x] `split-drop-overlay-css` - Add directional CSS overlays matching the screenshots
 - [x] `split-drop-hints` - Render "Swap" and split direction labels from i18n
 - [x] `split-drop-i18n` - Add split direction locale strings to all locale modules
-- [ ] `drag-preview-regression` - Confirm existing floating drag preview and source dimming still work
+- [x] `drag-preview-regression` - Confirm existing floating drag preview and source dimming still work
 
 ### P5 Verification
 
