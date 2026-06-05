@@ -24,6 +24,7 @@ mod media_keys;
 mod memory;
 mod plans;
 mod plans_index;
+mod popout;
 mod plugins;
 mod pointers;
 mod proc;
@@ -192,6 +193,9 @@ pub fn run() {
             app_log_clear,
             app_log_delete,
             exit_app,
+            popout::popout_open,
+            popout::popout_focus,
+            popout::popout_close_current,
             window_controls::window_minimize,
             window_controls::window_toggle_maximize,
             window_controls::window_is_maximized,
