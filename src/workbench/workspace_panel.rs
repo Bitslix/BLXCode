@@ -1300,6 +1300,7 @@ fn TerminalSlotSurface(
     let persisted = wb.slot_panes(workspace_id, slot_id);
     let pane_ids = RwSignal::new(persisted.pane_ids);
     let next_pane_id = RwSignal::new(persisted.next_pane_id);
+    let pane_agents = RwSignal::new(persisted.pane_agents);
     let split_axis = RwSignal::new(persisted.axis);
 
     // Per-slot drag-eligibility gate. Split panes can't be reordered
@@ -1343,6 +1344,7 @@ fn TerminalSlotSurface(
             axis: split_axis.get(),
             pane_ids: pane_ids.get(),
             next_pane_id: next_pane_id.get(),
+            pane_agents: pane_agents.get(),
         };
         wb.set_slot_panes(workspace_id, slot_id, snapshot);
     });

@@ -770,6 +770,8 @@ pub struct SlotPaneState {
     pub axis: TerminalSplitAxis,
     pub pane_ids: Vec<u64>,
     pub next_pane_id: u64,
+    #[serde(default)]
+    pub pane_agents: Vec<SlotPaneAgentState>,
 }
 
 impl SlotPaneState {
@@ -782,6 +784,7 @@ impl SlotPaneState {
             axis: TerminalSplitAxis::Vertical,
             pane_ids: vec![first],
             next_pane_id: first.saturating_add(1),
+            pane_agents: vec![SlotPaneAgentState::default()],
         }
     }
 }
@@ -6347,6 +6350,22 @@ mod terminal_slot_tests {
     }
 
     #[test]
+    fn slot_pane_state_deserializes_without_pane_agents() {
+        let value = serde_json::json!({
+            "axis": "Vertical",
+            "pane_ids": [1001],
+            "next_pane_id": 1002
+        });
+
+        let state: SlotPaneState = serde_json::from_value(value).unwrap();
+
+        assert_eq!(state.axis, TerminalSplitAxis::Vertical);
+        assert_eq!(state.pane_ids, vec![1001]);
+        assert_eq!(state.next_pane_id, 1002);
+        assert!(state.pane_agents.is_empty());
+    }
+
+    #[test]
     fn transfer_moves_slot_to_target_and_keeps_arrays_aligned() {
         let mut list = vec![mk_slots_with_id(1, 3), mk_slots_with_id(2, 1)];
         let mv = transfer_workspace_slot(&mut list, 1, 2, 2).expect("transfer ok");
@@ -6404,6 +6423,7 @@ mod terminal_slot_tests {
                 axis: TerminalSplitAxis::Vertical,
                 pane_ids: vec![7, 11],
                 next_pane_id: 12,
+                pane_agents: Vec::new(),
             };
         }
         let mv = transfer_workspace_slot(&mut list, 1, 2, 2).expect("transfer ok");
