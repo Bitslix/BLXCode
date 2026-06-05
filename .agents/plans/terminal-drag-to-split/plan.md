@@ -221,7 +221,7 @@ The implementation should stay in the existing Rust/Leptos workbench model. No n
 
 ### P4 Drag UI
 
-- [ ] `dnd-ghost-action` - Replace ghost state with target slot plus drop action
+- [x] `dnd-ghost-action` - Replace ghost state with target slot plus drop action
 - [ ] `dnd-action-from-geometry` - Compute swap/split direction from dragover cursor and target rect
 - [ ] `dnd-drop-dispatch` - Dispatch swap for center drops and move-into-split for edge drops
 - [ ] `dnd-drop-validation` - Preserve WebView2-safe dragenter/dragover acceptance and final drop revalidation
